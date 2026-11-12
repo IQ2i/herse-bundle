@@ -13,6 +13,8 @@ RUN apk add --no-cache  \
 
 RUN set -eux; \
     install-php-extensions \
+        exif \
+        gd \
     	intl \
         pcov \
         pcntl \

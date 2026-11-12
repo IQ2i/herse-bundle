@@ -8,3 +8,7 @@
 /tests/TestApplication/config/reference.php
 /.plans/
 /.twig-cs-fixer.cache
+/tests/SyliusApplication/vendor/
+/tests/SyliusApplication/composer.lock
+/tests/SyliusApplication/.phpunit.cache
+/tests/SyliusApplication/config/reference.php

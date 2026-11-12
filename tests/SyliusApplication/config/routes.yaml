@@ -1,0 +1,24 @@
+admin_login_check:
+    path: /admin/login-check
+    methods: [POST]
+    controller: App\Controller\LoginCheckController
+
+shop_login_check:
+    path: /login-check
+    methods: [POST]
+    controller: App\Controller\LoginCheckController
+
+admin_two_factor_form:
+    path: /admin/2fa
+    methods: [GET]
+    controller: App\Controller\PageController
+
+admin_two_factor_check:
+    path: /admin/2fa_check
+    methods: [POST]
+    controller: App\Controller\LoginCheckController
+
+admin_private:
+    path: /admin/private
+    methods: [GET]
+    controller: App\Controller\PageController

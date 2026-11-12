@@ -1,0 +1,36 @@
+iq2i_herse:
+    users:
+        App\Entity\User\AdminUser:
+            type: admin
+            email: email
+            locale: localeCode
+            plain_password: { property: plainPassword, groups: [sylius_user_create] }
+        App\Entity\User\ShopUser:
+            type: shop
+            email: customer.email
+            plain_password: { property: plainPassword, groups: [sylius_user_registration] }
+    mailer:
+        sender: no-reply@example.com
+        sender_name: Example
+        app_name: Example shop
+    password_policy: true
+    login_throttling:
+        enabled: true
+        identifier_and_ip: { limit: 3, interval: '1 minute' }
+        ip: { limit: 5, interval: '1 minute' }
+        identifier: { enabled: true, limit: 4, interval: '15 minutes' }
+        cache_pool: test.herse_rate_limiter
+    trusted_devices:
+        enabled: true
+        firewalls:
+            admin: ~
+            shop: ~
+    password_change_notification: true
+
+framework:
+    cache:
+        pools:
+            # Not an array adapter: the kernel resets it between two requests, which would clear the counters.
+            # The tests empty it, see the "test.herse_rate_limiter.public" alias.
+            test.herse_rate_limiter:
+                adapter: cache.adapter.filesystem

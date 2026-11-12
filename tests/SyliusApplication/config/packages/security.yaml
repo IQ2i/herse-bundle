@@ -1,0 +1,55 @@
+security:
+    providers:
+        sylius_admin_user_provider:
+            id: sylius.admin_user_provider.email_or_name_based
+        sylius_shop_user_provider:
+            id: sylius.shop_user_provider.email_or_name_based
+
+    password_hashers:
+        Sylius\Component\User\Model\UserInterface: argon2i
+
+    # The firewalls keep the names, the providers, the user checkers and the contexts of Sylius-Standard. The login
+    # is a JSON login on both of them: the admin and shop screens (and their CSRF tokens) are not part of the bundle.
+    firewalls:
+        admin:
+            context: admin
+            pattern: ^/admin
+            provider: sylius_admin_user_provider
+            user_checker: security.user_checker.chain.admin
+            json_login:
+                check_path: /admin/login-check
+                username_path: _username
+                password_path: _password
+            remember_me:
+                secret: sylius-test-secret
+                path: /admin
+                name: APP_ADMIN_REMEMBER_ME
+                lifetime: 31536000
+                remember_me_parameter: _remember_me
+            logout:
+                path: /admin/logout
+            login_throttling:
+                limiter: iq2i_herse.login_throttling.limiter
+
+        shop:
+            context: shop
+            pattern: ^/
+            provider: sylius_shop_user_provider
+            user_checker: security.user_checker.chain.shop
+            json_login:
+                check_path: /login-check
+                username_path: _username
+                password_path: _password
+            remember_me:
+                secret: sylius-test-secret
+                name: APP_SHOP_REMEMBER_ME
+                lifetime: 31536000
+                remember_me_parameter: _remember_me
+            login_throttling:
+                limiter: iq2i_herse.login_throttling.limiter
+
+    access_control:
+        - { path: ^/admin/login, role: PUBLIC_ACCESS }
+        - { path: ^/admin/2fa, role: IS_AUTHENTICATED_2FA_IN_PROGRESS }
+        - { path: ^/login, role: PUBLIC_ACCESS }
+        - { path: ^/admin, role: ROLE_ADMINISTRATION_ACCESS }

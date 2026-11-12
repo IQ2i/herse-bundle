@@ -15,6 +15,7 @@
   <testsuites>
     <testsuite name="Herse Bundle Test Suite">
       <directory>tests</directory>
+      <exclude>tests/SyliusApplication</exclude>
     </testsuite>
   </testsuites>
   <source>

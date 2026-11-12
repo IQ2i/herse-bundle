@@ -1,0 +1,13 @@
+doctrine:
+    dbal:
+        driver: pdo_sqlite
+        memory: true
+    orm:
+        auto_mapping: true
+        mappings:
+            App:
+                is_bundle: false
+                type: attribute
+                dir: '%kernel.project_dir%/src/Entity'
+                prefix: 'App\Entity'
+                alias: App

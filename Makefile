@@ -9,7 +9,7 @@ PHP = $(PHP_CONT) php
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY        = help build logs php install ci static cs-fix test coverage
+.PHONY        = help build logs php install ci static cs-fix test coverage sylius-install sylius-test
 
 ## —— Help 🐳 🎵 ———————————————————————————————————————————————————————————————
 help: ## Outputs this help screen
@@ -28,6 +28,16 @@ php: ## Connect to the PHP FPM container
 ## —— Project 🐝 ———————————————————————————————————————————————————————————————
 install: ## Install project
 	@$(PHP_CONT) composer install
+
+## —— Sylius ———————————————————————————————————————————————————————————————————
+SYLIUS_VERSION ?= 2.3
+SYLIUS_PHP = $(DOCKER_COMP) run --rm -w /srv/app/tests/SyliusApplication php
+
+sylius-install: ## Install the Sylius test application (SYLIUS_VERSION=2.2 or 2.3)
+	@$(SYLIUS_PHP) composer update --with "sylius/sylius:~$(SYLIUS_VERSION).0" --no-interaction --no-progress
+
+sylius-test: ## Run the tests of the Sylius test application
+	@$(SYLIUS_PHP) php -d memory_limit=-1 vendor/bin/phpunit
 
 ## —— CI ✨ ————————————————————————————————————————————————————————————————————
 ci: static test

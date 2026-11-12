@@ -1,0 +1,3 @@
+when@test_two_factor:
+    sylius_channel:
+        debug: true

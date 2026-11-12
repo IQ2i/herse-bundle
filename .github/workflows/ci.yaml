@@ -92,6 +92,37 @@ jobs:
             - name: "Run PHPUnit"
               run: vendor/bin/phpunit
 
+    tests-sylius:
+        name: "Tests on Sylius ${{ matrix.sylius }}"
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - sylius: "2.2"
+                      php: "8.2"
+                    - sylius: "2.3"
+                      php: "8.4"
+        steps:
+            - name: "Checkout repository"
+              uses: actions/checkout@v7
+
+            - name: "Setup PHP"
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: ${{ matrix.php }}
+                  extensions: exif, gd, intl, pdo_sqlite, sodium, zip
+                  coverage: none
+                  tools: composer:v2
+
+            - name: "Install the Sylius application"
+              working-directory: tests/SyliusApplication
+              run: composer update --with "sylius/sylius:~${{ matrix.sylius }}.0" --no-interaction --no-progress
+
+            - name: "Run PHPUnit"
+              working-directory: tests/SyliusApplication
+              run: php -d memory_limit=-1 vendor/bin/phpunit
+
     coverage:
         name: "Coverage"
         uses: IQ2i/.github/.github/workflows/php-tests.yml@main

@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the Herse Bundle.
+ *
+ * (c) Loïc Sapone <loic@sapone.fr>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace App\Entity\Product;
+
+use Doctrine\ORM\Mapping as ORM;
+use Sylius\Component\Product\Model\ProductAssociationType as BaseProductAssociationType;
+use Sylius\Component\Product\Model\ProductAssociationTypeTranslationInterface;
+
+#[ORM\Entity]
+#[ORM\Table(name: 'sylius_product_association_type')]
+class ProductAssociationType extends BaseProductAssociationType
+{
+    protected function createTranslation(): ProductAssociationTypeTranslationInterface
+    {
+        return new ProductAssociationTypeTranslation();
+    }
+}

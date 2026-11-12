@@ -1,0 +1,7 @@
+security:
+    firewalls:
+        admin:
+            two_factor:
+                auth_form_path: /admin/2fa
+                check_path: /admin/2fa_check
+                prepare_on_login: true
