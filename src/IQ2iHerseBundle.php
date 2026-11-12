@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle;
 
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
+use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
@@ -22,11 +23,16 @@ use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\CacheStorage;
 
 final class IQ2iHerseBundle extends AbstractBundle
 {
@@ -110,6 +116,10 @@ final class IQ2iHerseBundle extends AbstractBundle
                 $this->configurePasswordPolicy($node);
             }
 
+            if ('login_throttling' === $feature) {
+                $this->configureLoginThrottling($node);
+            }
+
             $node->end();
         }
     }
@@ -125,7 +135,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      * @param array{
      *     users: array<class-string, array{type: string, email: string, id: string, plain_password?: array{property?: string|null, groups?: list<string>}}>,
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool},
-     *     login_throttling: array{enabled: bool},
+     *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
      *     trusted_devices: array{enabled: bool},
      *     password_change_notification: array{enabled: bool},
      *     two_factor: array{enabled: bool},
@@ -149,6 +159,97 @@ final class IQ2iHerseBundle extends AbstractBundle
         if ($config['password_policy']['enabled']) {
             $this->loadPasswordPolicy($config['password_policy'], $passwordPolicyMapping, $container);
         }
+
+        if ($config['login_throttling']['enabled']) {
+            $this->loadLoginThrottling($config['login_throttling'], $container);
+        }
+    }
+
+    private function configureLoginThrottling(ArrayNodeDefinition $node): void
+    {
+        $children = $node->children();
+
+        $this->addThrottlingWindow($children->arrayNode('identifier_and_ip')->info('Failed attempts for the same identifier from the same IP.')->addDefaultsIfNotSet(), 5, '1 minute');
+        $this->addThrottlingWindow($children->arrayNode('ip')->info('Failed attempts from the same IP, whatever the identifier.')->addDefaultsIfNotSet(), 25, '1 minute');
+        $this->addThrottlingWindow(
+            $children->arrayNode('identifier')
+                ->info('Failed attempts for the same identifier, whatever the IP. It covers a distributed attack on one account, but lets a third party temporarily lock someone else out.')
+                ->canBeEnabled(),
+            20,
+            '15 minutes',
+        );
+
+        $children
+            ->scalarNode('cache_pool')
+                ->info('Cache pool storing the counters. It must be shared between servers on a multi-server project.')
+                ->defaultValue('cache.rate_limiter')
+                ->cannotBeEmpty()
+            ->end()
+            ->scalarNode('lock_factory')
+                ->info('Lock factory service id, "auto" to use lock.factory when it exists, null to disable locking.')
+                ->defaultValue('auto')
+            ->end()
+        ;
+    }
+
+    private function addThrottlingWindow(ArrayNodeDefinition $window, int $limit, string $interval): void
+    {
+        $window
+            ->children()
+                ->integerNode('limit')->defaultValue($limit)->min(1)->end()
+                ->scalarNode('interval')
+                    ->info('Duration of the window, as a relative date format (e.g. "1 minute").')
+                    ->defaultValue($interval)
+                    ->cannotBeEmpty()
+                    ->validate()
+                        ->ifTrue(static fn (string $value): bool => !self::isValidInterval($value))
+                        ->thenInvalid('%s is not a valid interval.')
+                    ->end()
+                ->end()
+            ->end()
+        ;
+    }
+
+    /**
+     * @param array{identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null} $throttling
+     */
+    private function loadLoginThrottling(array $throttling, ContainerConfigurator $container): void
+    {
+        if (!ContainerBuilder::willBeAvailable('symfony/rate-limiter', RateLimiterFactory::class, ['iq2i/herse-bundle'])) {
+            throw new InvalidConfigurationException('iq2i_herse.login_throttling requires the Rate Limiter component. Try running "composer require symfony/rate-limiter".');
+        }
+
+        $lockFactory = match ($throttling['lock_factory']) {
+            null => null,
+            'auto' => class_exists(LockFactory::class) ? new Reference('lock.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE) : null,
+            default => new Reference($throttling['lock_factory']),
+        };
+
+        $services = $container->services();
+        $services->set('iq2i_herse.login_throttling.storage', CacheStorage::class)->args([new Reference($throttling['cache_pool'])]);
+
+        $factories = [];
+        foreach (['identifier_and_ip', 'ip', 'identifier'] as $name) {
+            if (!($throttling[$name]['enabled'] ?? true)) {
+                $factories[$name] = null;
+
+                continue;
+            }
+
+            $id = 'iq2i_herse.login_throttling.limiter.'.$name;
+            $services->set($id, RateLimiterFactory::class)->args([
+                ['id' => 'iq2i_herse_login_'.$name, 'policy' => 'fixed_window', 'limit' => $throttling[$name]['limit'], 'interval' => $throttling[$name]['interval']],
+                new Reference('iq2i_herse.login_throttling.storage'),
+                $lockFactory,
+            ]);
+            $factories[$name] = new Reference($id);
+        }
+
+        // Public: it is referenced by id from the firewall "login_throttling.limiter" option of the project.
+        $services->set('iq2i_herse.login_throttling.limiter', LoginRateLimiter::class)
+            ->args([$factories['identifier_and_ip'], $factories['ip'], $factories['identifier'], new Reference('security.helper'), new Reference('event_dispatcher'), '%kernel.secret%'])
+            ->public()
+        ;
     }
 
     private function configurePasswordPolicy(ArrayNodeDefinition $node): void
@@ -227,6 +328,18 @@ final class IQ2iHerseBundle extends AbstractBundle
         }
 
         return $mapping;
+    }
+
+    // Mirrors how RateLimiterFactory parses the interval, which fails on the first use otherwise.
+    private static function isValidInterval(string $interval): bool
+    {
+        try {
+            new \DateTimeImmutable('+'.$interval);
+        } catch (\Exception) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

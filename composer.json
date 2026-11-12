@@ -26,16 +26,19 @@
     "phpstan/phpstan": "^2.1",
     "phpstan/phpstan-symfony": "^2.0",
     "phpunit/phpunit": "^10.5|^11.5",
+    "symfony/cache": "^6.4|^7.0|^8.0",
     "symfony/form": "^6.4|^7.0|^8.0",
     "symfony/framework-bundle": "^6.4|^7.0|^8.0",
     "symfony/http-client": "^6.4|^7.0|^8.0",
     "symfony/phpunit-bridge": "^7.4|^8.0",
+    "symfony/rate-limiter": "^6.4|^7.0|^8.0",
     "symfony/translation": "^6.4|^7.0|^8.0",
     "symfony/yaml": "^6.4|^7.0|^8.0"
   },
   "suggest": {
     "symfony/form": "To use the PasswordPolicyType form type",
     "symfony/http-client": "To reject compromised passwords (password_policy.check_compromised)",
+    "symfony/rate-limiter": "To limit the login attempts (login_throttling)",
     "symfony/translation": "To translate the validation messages"
   },
   "config": {

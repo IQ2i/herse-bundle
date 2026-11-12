@@ -16,6 +16,7 @@ namespace IQ2i\HerseBundle\Tests;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
+use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
 use IQ2i\HerseBundle\Tests\TestApplication\User;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
@@ -24,9 +25,13 @@ use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\Form;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\CacheStorage;
 
 final class IQ2iHerseBundleTest extends TestCase
 {
@@ -235,6 +240,105 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertFalse($container->has('validator.builder'));
     }
 
+    public function testLoginThrottlingDeclaresItsServicesWithTheDefaultSettings(): void
+    {
+        $container = $this->load(['login_throttling' => true]);
+
+        self::assertSame(CacheStorage::class, $container->getDefinition('iq2i_herse.login_throttling.storage')->getClass());
+        self::assertEquals([new Reference('cache.rate_limiter')], $container->getDefinition('iq2i_herse.login_throttling.storage')->getArguments());
+
+        self::assertSame(
+            ['id' => 'iq2i_herse_login_identifier_and_ip', 'policy' => 'fixed_window', 'limit' => 5, 'interval' => '1 minute'],
+            $container->getDefinition('iq2i_herse.login_throttling.limiter.identifier_and_ip')->getArgument(0),
+        );
+        self::assertSame(
+            ['id' => 'iq2i_herse_login_ip', 'policy' => 'fixed_window', 'limit' => 25, 'interval' => '1 minute'],
+            $container->getDefinition('iq2i_herse.login_throttling.limiter.ip')->getArgument(0),
+        );
+        self::assertFalse($container->hasDefinition('iq2i_herse.login_throttling.limiter.identifier'));
+        self::assertSame(RateLimiterFactory::class, $container->getDefinition('iq2i_herse.login_throttling.limiter.ip')->getClass());
+
+        $limiter = $container->getDefinition('iq2i_herse.login_throttling.limiter');
+        self::assertSame(LoginRateLimiter::class, $limiter->getClass());
+        self::assertTrue($limiter->isPublic());
+        self::assertNull($limiter->getArgument(2));
+    }
+
+    public function testLoginThrottlingSettingsAreConfigurable(): void
+    {
+        $container = $this->load(['login_throttling' => [
+            'identifier_and_ip' => ['limit' => 3, 'interval' => '30 seconds'],
+            'ip' => ['limit' => 10],
+            'identifier' => ['limit' => 8],
+            'cache_pool' => 'cache.shared',
+        ]]);
+
+        self::assertEquals([new Reference('cache.shared')], $container->getDefinition('iq2i_herse.login_throttling.storage')->getArguments());
+        self::assertSame(['id' => 'iq2i_herse_login_identifier_and_ip', 'policy' => 'fixed_window', 'limit' => 3, 'interval' => '30 seconds'], $container->getDefinition('iq2i_herse.login_throttling.limiter.identifier_and_ip')->getArgument(0));
+        self::assertSame(['id' => 'iq2i_herse_login_ip', 'policy' => 'fixed_window', 'limit' => 10, 'interval' => '1 minute'], $container->getDefinition('iq2i_herse.login_throttling.limiter.ip')->getArgument(0));
+        self::assertSame(['id' => 'iq2i_herse_login_identifier', 'policy' => 'fixed_window', 'limit' => 8, 'interval' => '15 minutes'], $container->getDefinition('iq2i_herse.login_throttling.limiter.identifier')->getArgument(0));
+    }
+
+    public function testTheIdentifierLimitCanBeEnabledWithItsDefaults(): void
+    {
+        $container = $this->load(['login_throttling' => ['identifier' => true]]);
+
+        /** @var array{limit: int} $options */
+        $options = $container->getDefinition('iq2i_herse.login_throttling.limiter.identifier')->getArgument(0);
+
+        self::assertSame(20, $options['limit']);
+    }
+
+    public function testTheIdentifierLimitCanBeDisabledExplicitly(): void
+    {
+        $container = $this->load(['login_throttling' => ['identifier' => ['enabled' => false, 'limit' => 8]]]);
+
+        self::assertFalse($container->hasDefinition('iq2i_herse.login_throttling.limiter.identifier'));
+    }
+
+    public function testTheLockFactoryCanBeCustomizedOrDisabled(): void
+    {
+        $custom = $this->load(['login_throttling' => ['lock_factory' => 'app.lock']]);
+        self::assertEquals(new Reference('app.lock'), $custom->getDefinition('iq2i_herse.login_throttling.limiter.ip')->getArgument(2));
+
+        $disabled = $this->load(['login_throttling' => ['lock_factory' => null]]);
+        self::assertNull($disabled->getDefinition('iq2i_herse.login_throttling.limiter.ip')->getArgument(2));
+    }
+
+    public function testTheLockFactoryIsOptionalInAutoMode(): void
+    {
+        $container = $this->load(['login_throttling' => true]);
+
+        $lockFactory = $container->getDefinition('iq2i_herse.login_throttling.limiter.ip')->getArgument(2);
+        if (class_exists(LockFactory::class)) {
+            self::assertEquals(new Reference('lock.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE), $lockFactory);
+        } else {
+            self::assertNull($lockFactory);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $throttling
+     */
+    #[DataProvider('provideInvalidLoginThrottlingSettings')]
+    public function testInvalidLoginThrottlingSettingsAreRejected(array $throttling, string $message): void
+    {
+        $this->expectExceptionMessage($message);
+
+        $this->load(['login_throttling' => $throttling]);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function provideInvalidLoginThrottlingSettings(): iterable
+    {
+        yield 'no attempt allowed' => [['ip' => ['limit' => 0]], 'iq2i_herse.login_throttling.ip.limit'];
+        yield 'unparsable interval' => [['identifier_and_ip' => ['interval' => 'soon']], '"soon" is not a valid interval'];
+        yield 'empty interval' => [['identifier' => ['interval' => '']], 'iq2i_herse.login_throttling.identifier.interval'];
+        yield 'empty cache pool' => [['cache_pool' => ''], 'iq2i_herse.login_throttling.cache_pool'];
+    }
+
     private function currentExceptionHandler(): ?callable
     {
         $handler = set_exception_handler(null);
@@ -267,6 +371,7 @@ final class IQ2iHerseBundleTest extends TestCase
             'kernel.debug' => true,
             'kernel.build_dir' => sys_get_temp_dir(),
             'kernel.project_dir' => __DIR__,
+            'kernel.secret' => 'secret',
         ]));
         $extension = (new IQ2iHerseBundle())->getContainerExtension();
         self::assertNotNull($extension);
