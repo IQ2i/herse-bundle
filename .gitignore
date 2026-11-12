@@ -1,0 +1,9 @@
+/composer.lock
+/composer.phar
+/vendor/
+/.phpunit.cache
+/phpunit.xml
+/clover.xml
+/.php-cs-fixer.cache
+/tests/TestApplication/config/reference.php
+/.plans/

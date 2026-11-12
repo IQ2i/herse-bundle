@@ -1,0 +1,52 @@
+{
+  "name": "iq2i/herse-bundle",
+  "type": "symfony-bundle",
+  "description": "Account security building blocks for Symfony and Sylius: password policy, login throttling, trusted devices, password change notification and two-factor authentication",
+  "license": "MIT",
+  "keywords": [
+    "symfony",
+    "bundle",
+    "security",
+    "password",
+    "two-factor",
+    "trusted-devices",
+    "throttling"
+  ],
+  "require": {
+    "php": ">=8.2",
+    "symfony/config": "^6.4|^7.0|^8.0",
+    "symfony/dependency-injection": "^6.4|^7.0|^8.0",
+    "symfony/http-kernel": "^6.4|^7.0|^8.0",
+    "symfony/property-access": "^6.4|^7.0|^8.0",
+    "symfony/security-bundle": "^6.4|^7.0|^8.0",
+    "symfony/validator": "^6.4|^7.0|^8.0"
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "^3.52",
+    "phpstan/phpstan": "^2.1",
+    "phpstan/phpstan-symfony": "^2.0",
+    "phpunit/phpunit": "^10.5|^11.5",
+    "symfony/framework-bundle": "^6.4|^7.0|^8.0",
+    "symfony/phpunit-bridge": "^7.4|^8.0",
+    "symfony/yaml": "^6.4|^7.0|^8.0"
+  },
+  "config": {
+    "sort-packages": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
+  },
+  "autoload": {
+    "psr-4": {
+      "IQ2i\\HerseBundle\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "IQ2i\\HerseBundle\\Tests\\TestApplication\\": "tests/TestApplication/src",
+      "IQ2i\\HerseBundle\\Tests\\": "tests"
+    }
+  }
+}

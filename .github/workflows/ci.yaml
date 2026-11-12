@@ -1,0 +1,60 @@
+name: "Continuous Integration"
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    security:
+        name: "Security"
+        uses: IQ2i/.github/.github/workflows/php-security.yml@main
+        with:
+            no-check-lock: true
+
+    coding-standard:
+        name: "Coding standard"
+        uses: IQ2i/.github/.github/workflows/php-cs.yml@main
+
+    static-analysis-highest:
+        name: "Static analysis"
+        uses: IQ2i/.github/.github/workflows/php-stan.yml@main
+        with:
+            php-version: "8.5"
+
+    static-analysis-lowest:
+        name: "Static analysis"
+        uses: IQ2i/.github/.github/workflows/php-stan.yml@main
+        with:
+            php-version: "8.2"
+            dependency-versions: lowest
+
+    tests:
+        name: "Tests"
+        uses: IQ2i/.github/.github/workflows/bundle-ci.yml@main
+        with:
+            matrix: |
+                [
+                    {"php": "8.4", "symfony": "8.0", "name": "PHP 8.4, Symfony 8.0"},
+                    {"php": "8.3", "symfony": "7.4", "name": "PHP 8.3, Symfony 7.4"},
+                    {"php": "8.2", "symfony": "6.4", "dependency-versions": "lowest", "name": "PHP 8.2, Symfony 6.4, lowest deps"},
+                    {"php": "8.5", "symfony": "8.0.x-dev", "stability": "dev", "name": "PHP 8.5, Symfony 8.0.x-dev"}
+                ]
+
+    coverage:
+        name: "Coverage"
+        uses: IQ2i/.github/.github/workflows/php-tests.yml@main
+        with:
+            coverage: pcov
+            coverage-floor: 95
