@@ -60,6 +60,14 @@ final class DeviceCookies implements ResetInterface
         return \is_string($token) && 1 === preg_match('/^[0-9a-f]{64}$/', $token) ? $token : null;
     }
 
+    /**
+     * The token of the browser making the request: the one about to be set when its device was just registered, the cookie otherwise.
+     */
+    public function current(Request $request, string $firewall): ?string
+    {
+        return $this->toSet[$firewall] ?? $this->token($request, $firewall);
+    }
+
     public function expiresAt(string $firewall, \DateTimeImmutable $from): \DateTimeImmutable
     {
         return $from->modify('+'.$this->firewalls[$firewall]['lifetime']);

@@ -72,6 +72,26 @@ jobs:
             - name: "Run PHPUnit"
               run: vendor/bin/phpunit
 
+    tests-without-scheb:
+        name: "Tests without scheb/2fa-bundle"
+        runs-on: ubuntu-latest
+        steps:
+            - name: "Checkout repository"
+              uses: actions/checkout@v7
+
+            - name: "Setup PHP"
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.4"
+                  coverage: none
+                  tools: composer:v2
+
+            - name: "Remove scheb"
+              run: composer remove --dev scheb/2fa-bundle scheb/2fa-email scheb/2fa-totp scheb/2fa-trusted-device --no-interaction --no-progress
+
+            - name: "Run PHPUnit"
+              run: vendor/bin/phpunit
+
     coverage:
         name: "Coverage"
         uses: IQ2i/.github/.github/workflows/php-tests.yml@main

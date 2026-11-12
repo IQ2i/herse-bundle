@@ -46,6 +46,18 @@
                 <source>If this was you, nothing more to do. Otherwise, change your password and revoke this device as soon as possible.</source>
                 <target>S'il s'agit de vous, rien d'autre à faire. Sinon, changez votre mot de passe et révoquez cet appareil au plus vite.</target>
             </trans-unit>
+            <trans-unit id="two_factor_code.subject">
+                <source>Your sign-in code</source>
+                <target>Votre code de connexion</target>
+            </trans-unit>
+            <trans-unit id="two_factor_code.code">
+                <source>Your sign-in code is: %code%</source>
+                <target>Votre code de connexion est : %code%</target>
+            </trans-unit>
+            <trans-unit id="two_factor_code.warning">
+                <source>If you did not try to sign in, change your password as soon as possible.</source>
+                <target>Si vous n'avez pas essayé de vous connecter, changez votre mot de passe au plus vite.</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

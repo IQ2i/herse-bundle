@@ -37,6 +37,11 @@ abstract class HerseKernelTestCase extends TestCase
 
     protected function tearDown(): void
     {
+        // A test skipped in its setUp, before the boot, has no kernel.
+        if (!isset($this->kernel)) {
+            return;
+        }
+
         $this->kernel->shutdown();
 
         // Booting a debug kernel registers an exception handler on some Symfony versions, which PHPUnit reports as risky.

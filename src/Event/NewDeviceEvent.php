@@ -17,7 +17,8 @@ use IQ2i\HerseBundle\User\UserReference;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 
 /**
- * Dispatched when a user logs in from a device the bundle does not know, once it is registered.
+ * Dispatched when a user logs in from a device the bundle does not know, once it is registered. With two_factor and
+ * trusted_devices.notify_before_second_factor, it is dispatched when the password is accepted, before the second factor.
  *
  * The email is null when none is meant to be sent (first device of the user with notify_first_device off, no address).
  * A listener can replace it, set one, or cancel the sending.

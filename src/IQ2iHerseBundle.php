@@ -28,10 +28,17 @@ use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceListener;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceRepository;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\TrustedDevice\UserAgentParser;
+use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
+use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
+use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
 use IQ2i\HerseBundle\User\UserResolver;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
+use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
+use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Email\EmailTwoFactorProvider;
+use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Totp\TotpAuthenticator;
+use Scheb\TwoFactorBundle\Security\TwoFactor\Trusted\TrustedDeviceManager as SchebTrustedDeviceManager;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
@@ -176,6 +183,10 @@ final class IQ2iHerseBundle extends AbstractBundle
                 $this->configureTrustedDevices($node);
             }
 
+            if ('two_factor' === $feature) {
+                $this->configureTwoFactor($node);
+            }
+
             $node->end();
         }
     }
@@ -193,9 +204,9 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
-     *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, revoke_on_password_change: bool},
+     *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
-     *     two_factor: array{enabled: bool},
+     *     two_factor: array{enabled: bool, method?: 'email'|'totp', trusted_devices: bool},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -228,43 +239,88 @@ final class IQ2iHerseBundle extends AbstractBundle
         if ($config['trusted_devices']['enabled']) {
             $this->loadTrustedDevices($config, $container);
         }
+
+        if ($config['two_factor']['enabled']) {
+            $this->loadTwoFactor($config, $container, $builder);
+        }
     }
 
     /**
-     * Maps the device entity of the bundle, without a line in the Doctrine config of the project.
+     * Maps the device entity of the bundle without a line in the Doctrine config of the project, and gives scheb the defaults of the method.
      */
     public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void
     {
-        if (!$builder->hasExtension('doctrine') || !$this->isTrustedDevicesEnabled($builder->getExtensionConfig($this->extensionAlias))) {
-            return;
+        $configs = $builder->getExtensionConfig($this->extensionAlias);
+
+        if ($builder->hasExtension('doctrine') && true === $this->rawFeature($configs, 'trusted_devices')['enabled']) {
+            $builder->prependExtensionConfig('doctrine', ['orm' => ['mappings' => ['IQ2iHerse' => [
+                'type' => 'attribute',
+                'is_bundle' => false,
+                'dir' => __DIR__.'/Entity',
+                'prefix' => 'IQ2i\\HerseBundle\\Entity',
+            ]]]]);
         }
 
-        $builder->prependExtensionConfig('doctrine', ['orm' => ['mappings' => ['IQ2iHerse' => [
-            'type' => 'attribute',
-            'is_bundle' => false,
-            'dir' => __DIR__.'/Entity',
-            'prefix' => 'IQ2i\\HerseBundle\\Entity',
-        ]]]]);
+        $this->prependScheb($builder, $configs);
     }
 
     /**
-     * The raw configurations are not processed yet: the last one setting the feature wins, as when they are merged.
+     * The values come first: the configuration of the project under scheb_two_factor overrides them.
      *
      * @param array<array<string, mixed>> $configs
      */
-    private function isTrustedDevicesEnabled(array $configs): bool
+    private function prependScheb(ContainerBuilder $builder, array $configs): void
     {
-        $enabled = false;
+        $twoFactor = $this->rawFeature($configs, 'two_factor');
+        $method = $twoFactor['method'] ?? null;
+        $bridge = (bool) ($twoFactor['trusted_devices'] ?? false);
+        // A missing package is reported with its Composer command when the extension is loaded.
+        if (!$twoFactor['enabled'] || !\in_array($method, ['email', 'totp'], true) || !$builder->hasExtension('scheb_two_factor') || [] !== self::findMissingSchebPackages($method, $bridge)) {
+            return;
+        }
+
+        $defaults = [];
+        if ('email' === $method) {
+            $defaults['email'] = ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6];
+        } else {
+            $appName = null;
+            foreach ($configs as $config) {
+                $appName = \is_array($config['mailer'] ?? null) ? ($config['mailer']['app_name'] ?? $appName) : $appName;
+            }
+            $defaults['totp'] = ['enabled' => true] + (\is_string($appName) ? ['issuer' => $appName] : []);
+        }
+
+        if ($bridge) {
+            $defaults['trusted_device'] = ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager'];
+        }
+
+        $builder->prependExtensionConfig('scheb_two_factor', $defaults);
+    }
+
+    /**
+     * The raw configurations are not processed yet: the last one setting an option wins, as when they are merged.
+     *
+     * @param array<array<string, mixed>> $configs
+     *
+     * @return array<string, mixed> the options, with "enabled" always set
+     */
+    private function rawFeature(array $configs, string $feature): array
+    {
+        /** @var array<string, mixed> $merged */
+        $merged = ['enabled' => false];
         foreach ($configs as $config) {
-            if (!\array_key_exists('trusted_devices', $config)) {
+            if (!\array_key_exists($feature, $config)) {
                 continue;
             }
 
-            $feature = $config['trusted_devices'];
-            $enabled = \is_array($feature) ? (bool) ($feature['enabled'] ?? true) : (null === $feature || (bool) $feature);
+            $value = $config[$feature];
+            /** @var array<string, mixed> $options */
+            $options = \is_array($value) ? $value + ['enabled' => true] : ['enabled' => null === $value || (bool) $value];
+            $merged = array_merge($merged, $options);
+            $merged['enabled'] = (bool) $merged['enabled'];
         }
 
-        return $enabled;
+        return $merged;
     }
 
     private function configureTrustedDevices(ArrayNodeDefinition $node): void
@@ -309,6 +365,10 @@ final class IQ2iHerseBundle extends AbstractBundle
                 ->info('Warn the user, too, when the device is the first one registered for them (e.g. the first login after the installation).')
                 ->defaultTrue()
             ->end()
+            ->booleanNode('notify_before_second_factor')
+                ->info('With two_factor, warn about a new device as soon as the password is accepted instead of once the second factor is passed. It warns the user that their password is known to a third party even when the second factor then fails.')
+                ->defaultFalse()
+            ->end()
             ->booleanNode('revoke_on_password_change')
                 ->info('Revoke the devices of a user whose password changes, but the current one when the owner changes it. Requires password_change_notification.')
                 ->defaultFalse()
@@ -317,7 +377,7 @@ final class IQ2iHerseBundle extends AbstractBundle
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
      */
     private function loadTrustedDevices(array $config, ContainerConfigurator $container): void
     {
@@ -359,8 +419,10 @@ final class IQ2iHerseBundle extends AbstractBundle
                 new Reference('logger'),
                 $devices['store_ip'],
                 $devices['notify_first_device'],
+                $devices['notify_before_second_factor'],
             ])
-            ->tag('kernel.event_listener', ['event' => LoginSuccessEvent::class, 'method' => 'onLoginSuccess'])
+            // Before the trusted device listener of scheb: the device of a finished login must exist when scheb verifies it.
+            ->tag('kernel.event_listener', ['event' => LoginSuccessEvent::class, 'method' => 'onLoginSuccess', 'priority' => 16])
         ;
         $services->set('iq2i_herse.trusted_devices.user_agent_parser', UserAgentParser::class);
 
@@ -460,8 +522,8 @@ final class IQ2iHerseBundle extends AbstractBundle
             throw new InvalidConfigurationException('iq2i_herse.mailer.sender is required when a feature sending emails is enabled.');
         }
 
+        $this->loadUserResolver($config, $container);
         $services = $container->services();
-        $services->set('iq2i_herse.user_resolver', UserResolver::class)->args([$config['users'], new Reference('property_accessor')]);
         $services->set('iq2i_herse.mailer', Mailer::class)->args([
             new Reference(MailerInterface::class),
             new Reference(TranslatorInterface::class),
@@ -470,6 +532,14 @@ final class IQ2iHerseBundle extends AbstractBundle
             $config['mailer']['sender_name'],
             $config['mailer']['app_name'],
         ]);
+    }
+
+    /**
+     * @param array{users: array<class-string, array<string, mixed>>} $config
+     */
+    private function loadUserResolver(array $config, ContainerConfigurator $container): void
+    {
+        $container->services()->set('iq2i_herse.user_resolver', UserResolver::class)->args([$config['users'], new Reference('property_accessor')]);
     }
 
     /**
@@ -491,6 +561,100 @@ final class IQ2iHerseBundle extends AbstractBundle
         if ([] !== $missing) {
             throw new InvalidConfigurationException(\sprintf('iq2i_herse.%s requires %s. Try running "composer require %s".', $feature, implode(', ', $missing), implode(' ', $missing)));
         }
+    }
+
+    private function configureTwoFactor(ArrayNodeDefinition $node): void
+    {
+        $node
+            ->children()
+                ->enumNode('method')
+                    ->info('The second factor: "email" (a code sent by email) or "totp" (an authenticator app). Required when the feature is enabled.')
+                    ->values(['email', 'totp'])
+                ->end()
+                ->booleanNode('trusted_devices')
+                    ->info('Skip the second factor on a device that passed it and was trusted by the user, with the device registry in place of the cookie of scheb. Requires trusted_devices and scheb/2fa-trusted-device.')
+                    ->defaultFalse()
+                ->end()
+            ->end()
+            ->validate()
+                ->ifTrue(static fn (array $twoFactor): bool => $twoFactor['enabled'] && !isset($twoFactor['method']))
+                ->thenInvalid('iq2i_herse.two_factor.method is required: "email" or "totp".')
+            ->end()
+        ;
+    }
+
+    /**
+     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', trusted_devices: bool}} $config
+     */
+    private function loadTwoFactor(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
+    {
+        $method = $config['two_factor']['method'] ?? throw new InvalidConfigurationException('iq2i_herse.two_factor.method is required: "email" or "totp".');
+        $bridge = $config['two_factor']['trusted_devices'];
+
+        $missing = self::findMissingSchebPackages($method, $bridge);
+        if ([] !== $missing) {
+            throw new InvalidConfigurationException(\sprintf('iq2i_herse.two_factor requires %s. Try running "composer require %s".', implode(', ', $missing), implode(' ', $missing)));
+        }
+
+        $bundles = $builder->hasParameter('kernel.bundles') ? $builder->getParameter('kernel.bundles') : [];
+        if (!\is_array($bundles) || !\in_array(SchebTwoFactorBundle::class, $bundles, true)) {
+            throw new InvalidConfigurationException(\sprintf('iq2i_herse.two_factor requires the bundle "%s" to be registered in config/bundles.php.', SchebTwoFactorBundle::class));
+        }
+
+        if ($bridge && !$config['trusted_devices']['enabled']) {
+            throw new InvalidConfigurationException('iq2i_herse.two_factor.trusted_devices requires iq2i_herse.trusted_devices to be enabled.');
+        }
+
+        $this->loadUserResolver($config, $container);
+        $services = $container->services();
+
+        $services->set('iq2i_herse.two_factor.event_relay', TwoFactorEventRelay::class)
+            ->args([new Reference('iq2i_herse.user_resolver'), new Reference('security.helper'), new Reference('event_dispatcher')])
+            ->tag('kernel.event_listener', ['event' => 'scheb_two_factor.authentication.success', 'method' => 'onSuccess'])
+            ->tag('kernel.event_listener', ['event' => 'scheb_two_factor.authentication.failure', 'method' => 'onFailure'])
+        ;
+
+        if ('email' === $method) {
+            $this->assertEmailRequirements('two_factor', []);
+            $this->loadMailer($config, $container);
+            $services->set('iq2i_herse.two_factor.auth_code_mailer', AuthCodeMailer::class)
+                ->args([new Reference('iq2i_herse.user_resolver'), new Reference('iq2i_herse.mailer'), new Reference('logger')])
+            ;
+        }
+
+        if ($bridge) {
+            $services->set('iq2i_herse.two_factor.trusted_device_manager', TrustedDeviceManager::class)->args([
+                new Reference('iq2i_herse.user_resolver'),
+                new Reference('iq2i_herse.trusted_devices.repository'),
+                new Reference('iq2i_herse.trusted_devices.cookies'),
+                new Reference('request_stack'),
+            ]);
+        }
+    }
+
+    /**
+     * Concrete classes are checked: an interface that is not loaded yet is reported as missing.
+     *
+     * @return list<string> the Composer packages to install
+     */
+    private static function findMissingSchebPackages(string $method, bool $trustedDevices): array
+    {
+        $packages = [
+            'scheb/2fa-bundle' => SchebTwoFactorBundle::class,
+            'email' === $method ? 'scheb/2fa-email' : 'scheb/2fa-totp' => 'email' === $method ? EmailTwoFactorProvider::class : TotpAuthenticator::class,
+        ];
+        if ($trustedDevices) {
+            $packages['scheb/2fa-trusted-device'] = SchebTrustedDeviceManager::class;
+        }
+
+        $missing = [];
+        foreach ($packages as $package => $class) {
+            if (!ContainerBuilder::willBeAvailable($package, $class, ['iq2i/herse-bundle'])) {
+                $missing[] = $package;
+            }
+        }
+
+        return $missing;
     }
 
     private function configureLoginThrottling(ArrayNodeDefinition $node): void

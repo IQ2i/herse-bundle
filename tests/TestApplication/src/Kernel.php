@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle\Tests\TestApplication;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
+use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
@@ -37,6 +38,10 @@ final class Kernel extends SymfonyKernel
         if (self::usesDoctrine($this->getEnvironment())) {
             yield new DoctrineBundle();
             yield new TwigBundle();
+        }
+
+        if (self::usesScheb($this->getEnvironment())) {
+            yield new SchebTwoFactorBundle();
         }
     }
 
@@ -65,6 +70,12 @@ final class Kernel extends SymfonyKernel
         if (self::usesDoctrine($this->getEnvironment())) {
             $routes->add('reset', '/reset')->controller(ResetPasswordController::class)->methods(['POST']);
         }
+
+        if (str_starts_with($this->getEnvironment(), 'two_factor')) {
+            $routes->add('two_factor_check', '/2fa_check')->controller(LoginController::class)->methods(['POST']);
+            $routes->add('two_factor_form', '/2fa')->controller(PageController::class)->methods(['GET']);
+            $routes->add('private', '/private')->controller(PageController::class)->methods(['GET']);
+        }
     }
 
     protected function configureContainer(ContainerBuilder $containerBuilder, LoaderInterface $loader): void
@@ -75,6 +86,14 @@ final class Kernel extends SymfonyKernel
 
     private static function usesDoctrine(string $environment): bool
     {
-        return str_starts_with($environment, 'password_change_notification') || str_starts_with($environment, 'trusted_devices');
+        return str_starts_with($environment, 'password_change_notification') || str_starts_with($environment, 'trusted_devices') || str_starts_with($environment, 'two_factor');
+    }
+
+    /**
+     * The environments reporting a scheb that is missing or not registered must not get it.
+     */
+    private static function usesScheb(string $environment): bool
+    {
+        return str_starts_with($environment, 'two_factor') && !\in_array($environment, ['two_factor_missing', 'two_factor_unregistered'], true) && class_exists(SchebTwoFactorBundle::class);
     }
 }

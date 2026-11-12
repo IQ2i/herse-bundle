@@ -19,6 +19,7 @@ use IQ2i\HerseBundle\Mailer\Mailer;
 use IQ2i\HerseBundle\User\UserReference;
 use IQ2i\HerseBundle\User\UserResolver;
 use Psr\Log\LoggerInterface;
+use Scheb\TwoFactorBundle\Security\Authentication\Token\TwoFactorTokenInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Http\Authenticator\InteractiveAuthenticatorInterface;
 use Symfony\Component\Security\Http\Authenticator\RememberMeAuthenticator;
@@ -35,6 +36,9 @@ final class TrustedDeviceListener
     public const TEMPLATE = '@IQ2iHerse/email/new_device.html.twig';
     public const SUBJECT = 'New sign-in to your account';
 
+    /** Set on the token when the user was warned before the second factor, so that the end of the login does not warn again. */
+    private const ALERTED_ATTRIBUTE = 'iq2i_herse.new_device_alerted';
+
     public function __construct(
         private readonly UserResolver $users,
         private readonly TrustedDeviceRepository $repository,
@@ -45,6 +49,7 @@ final class TrustedDeviceListener
         private readonly LoggerInterface $logger,
         private readonly bool $storeIp,
         private readonly bool $notifyFirstDevice,
+        private readonly bool $notifyBeforeSecondFactor = false,
     ) {
     }
 
@@ -56,20 +61,36 @@ final class TrustedDeviceListener
             return;
         }
 
+        // The password was accepted but the second factor is still to come: the device is registered once the login is complete.
+        $token = $event->getAuthenticatedToken();
+        $secondFactorPending = $token instanceof TwoFactorTokenInterface;
+        if ($secondFactorPending && !$this->notifyBeforeSecondFactor) {
+            return;
+        }
+
         try {
             $user = $event->getUser();
             $reference = $this->users->reference($user);
-            if (null !== $reference) {
-                // A remember-me login only comes back on a browser that already went through a login: it never registers a device.
-                $this->register($user, $reference, $firewall, $event->getRequest(), $authenticator instanceof RememberMeAuthenticator);
+            if (null === $reference) {
+                return;
             }
+
+            // A remember-me login only comes back on a browser that already went through a login: it never registers a device.
+            $onlyKnown = $authenticator instanceof RememberMeAuthenticator;
+            if ($token instanceof TwoFactorTokenInterface) {
+                $this->warnBeforeSecondFactor($token, $user, $reference, $firewall, $event->getRequest(), $onlyKnown);
+
+                return;
+            }
+
+            $this->register($user, $reference, $firewall, $event->getRequest(), $onlyKnown, $token->hasAttribute(self::ALERTED_ATTRIBUTE));
         } catch (\Throwable $exception) {
             // The device registry must never break a login.
             $this->logger->error('The trusted device could not be registered.', ['exception' => $exception]);
         }
     }
 
-    private function register(object $user, UserReference $reference, string $firewall, Request $request, bool $onlyKnown): void
+    private function register(object $user, UserReference $reference, string $firewall, Request $request, bool $onlyKnown, bool $alreadyAlerted): void
     {
         $now = new \DateTimeImmutable();
         $ip = $this->storeIp ? $request->getClientIp() : null;
@@ -101,20 +122,45 @@ final class TrustedDeviceListener
         $this->repository->persist($device);
         $this->cookies->set($firewall, $token);
 
-        $this->alert($user, $reference, $device, !$isFirstDevice || $this->notifyFirstDevice);
+        if (!$alreadyAlerted) {
+            $this->alert($user, $reference, $firewall, $device->getLabel(), $device->getLastIp(), $device->getCreatedAt(), !$isFirstDevice || $this->notifyFirstDevice);
+        }
     }
 
-    private function alert(object $user, UserReference $reference, TrustedDevice $device, bool $notify): void
+    /**
+     * Warns as soon as the password is accepted from an unknown device, without registering anything.
+     */
+    private function warnBeforeSecondFactor(TwoFactorTokenInterface $token, object $user, UserReference $reference, string $firewall, Request $request, bool $onlyKnown): void
+    {
+        $cookie = $this->cookies->token($request, $firewall);
+        $device = null === $cookie ? null : $this->repository->findOne($reference, $firewall, hash('sha256', $cookie));
+        if ($onlyKnown || (null !== $device && !$device->isExpired())) {
+            return;
+        }
+
+        $this->alert(
+            $user,
+            $reference,
+            $firewall,
+            $this->userAgentParser->parse($request->headers->get('User-Agent')),
+            $this->storeIp ? $request->getClientIp() : null,
+            new \DateTimeImmutable(),
+            $this->repository->hasAny($reference, $firewall) || $this->notifyFirstDevice,
+        );
+        $token->getAuthenticatedToken()->setAttribute(self::ALERTED_ATTRIBUTE, true);
+    }
+
+    private function alert(object $user, UserReference $reference, string $firewall, ?string $label, ?string $ip, \DateTimeImmutable $at, bool $notify): void
     {
         $email = $notify ? $this->mailer->create(
             self::TEMPLATE,
             self::SUBJECT,
             $this->users->email($user),
             $this->users->locale($user),
-            ['device' => $device->getLabel(), 'ip' => $device->getLastIp(), 'signed_in_at' => $device->getCreatedAt()],
+            ['device' => $label, 'ip' => $ip, 'signed_in_at' => $at],
         ) : null;
 
-        $event = $this->dispatcher->dispatch(new NewDeviceEvent($reference, $user, $device->getFirewall(), $device->getLabel(), $device->getLastIp(), $device->getCreatedAt(), $email));
+        $event = $this->dispatcher->dispatch(new NewDeviceEvent($reference, $user, $firewall, $label, $ip, $at, $email));
         $email = $event->getEmail();
         if ($event->isCancelled() || null === $email) {
             return;

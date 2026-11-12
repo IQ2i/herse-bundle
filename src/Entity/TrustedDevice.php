@@ -126,6 +126,14 @@ final class TrustedDevice
     /**
      * @internal
      */
+    public function markVerified(): void
+    {
+        $this->trustLevel = TrustLevel::Verified;
+    }
+
+    /**
+     * @internal
+     */
     public function markUsed(\DateTimeImmutable $now, ?string $ip, \DateTimeImmutable $expiresAt): void
     {
         $this->lastUsedAt = $now;

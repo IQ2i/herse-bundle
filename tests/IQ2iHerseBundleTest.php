@@ -26,11 +26,15 @@ use IQ2i\HerseBundle\Tests\TestApplication\User;
 use IQ2i\HerseBundle\TrustedDevice\DeviceCookies;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceListener;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
+use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
+use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
+use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
@@ -84,7 +88,15 @@ final class IQ2iHerseBundleTest extends TestCase
     public function testEachFeatureCanBeEnabled(): void
     {
         foreach (IQ2iHerseBundle::FEATURES as $feature) {
-            $options = 'trusted_devices' === $feature ? ['enabled' => true, 'firewalls' => ['main' => null]] : true;
+            if ('two_factor' === $feature && !class_exists(SchebTwoFactorBundle::class)) {
+                continue;
+            }
+
+            $options = match ($feature) {
+                'trusted_devices' => ['enabled' => true, 'firewalls' => ['main' => null]],
+                'two_factor' => ['method' => 'totp'],
+                default => true,
+            };
             /** @var array<string, bool> $features */
             $features = $this->load([$feature => $options, 'mailer' => ['sender' => 'no-reply@example.com']])->getParameter('iq2i_herse.features');
 
@@ -442,8 +454,8 @@ final class IQ2iHerseBundleTest extends TestCase
 
         $listener = $container->getDefinition('iq2i_herse.trusted_devices.listener');
         self::assertSame(TrustedDeviceListener::class, $listener->getClass());
-        self::assertSame([true, true], \array_slice($listener->getArguments(), -2));
-        self::assertSame([['event' => LoginSuccessEvent::class, 'method' => 'onLoginSuccess']], $listener->getTag('kernel.event_listener'));
+        self::assertSame([true, true, false], \array_slice($listener->getArguments(), -3));
+        self::assertSame([['event' => LoginSuccessEvent::class, 'method' => 'onLoginSuccess', 'priority' => 16]], $listener->getTag('kernel.event_listener'));
 
         self::assertTrue($container->getDefinition(TrustedDevices::class)->isPublic());
         self::assertTrue($container->getDefinition(PurgeTrustedDevicesCommand::class)->hasTag('console.command'));
@@ -457,6 +469,7 @@ final class IQ2iHerseBundleTest extends TestCase
                 'firewalls' => ['admin' => ['cookie_name' => 'admin.device', 'lifetime' => '7 days'], 'shop' => null],
                 'store_ip' => false,
                 'notify_first_device' => false,
+                'notify_before_second_factor' => true,
             ],
             'mailer' => ['sender' => 'no-reply@example.com'],
         ]);
@@ -465,7 +478,7 @@ final class IQ2iHerseBundleTest extends TestCase
             [['admin' => ['cookie_name' => 'admin.device', 'lifetime' => '7 days'], 'shop' => ['cookie_name' => 'herse_device_shop', 'lifetime' => '30 days']]],
             $container->getDefinition('iq2i_herse.trusted_devices.cookies')->getArguments(),
         );
-        self::assertSame([false, false], \array_slice($container->getDefinition('iq2i_herse.trusted_devices.listener')->getArguments(), -2));
+        self::assertSame([false, false, true], \array_slice($container->getDefinition('iq2i_herse.trusted_devices.listener')->getArguments(), -3));
     }
 
     public function testTheDevicesAreRevokedOnPasswordChangeWhenAsked(): void
@@ -571,6 +584,171 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertSame([], $container->getExtensionConfig('doctrine'));
     }
 
+    public function testTheSecondFactorMethodIsRequired(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.two_factor.method is required');
+
+        $this->load(['two_factor' => true]);
+    }
+
+    public function testAnUnknownSecondFactorMethodIsRejected(): void
+    {
+        $this->expectExceptionMessage('"sms"');
+
+        $this->load(['two_factor' => ['method' => 'sms']]);
+    }
+
+    public function testAMissingSchebIsReportedWithTheComposerCommand(): void
+    {
+        if (class_exists(SchebTwoFactorBundle::class)) {
+            self::markTestSkipped('Only meaningful while scheb is not installed.');
+        }
+
+        $this->expectExceptionMessage('iq2i_herse.two_factor requires scheb/2fa-bundle, scheb/2fa-email. Try running "composer require scheb/2fa-bundle scheb/2fa-email".');
+
+        $this->load(['two_factor' => ['method' => 'email'], 'mailer' => ['sender' => 'no-reply@example.com']]);
+    }
+
+    public function testTheComposerCommandNamesThePackagesOfTheMethod(): void
+    {
+        if (class_exists(SchebTwoFactorBundle::class)) {
+            self::markTestSkipped('Only meaningful while scheb is not installed.');
+        }
+
+        $this->expectExceptionMessage('Try running "composer require scheb/2fa-bundle scheb/2fa-totp scheb/2fa-trusted-device".');
+
+        $this->load(['two_factor' => ['method' => 'totp', 'trusted_devices' => true]]);
+    }
+
+    public function testTheSchebBundleMustBeRegistered(): void
+    {
+        $this->requireScheb();
+
+        $this->expectExceptionMessage('requires the bundle "Scheb\\TwoFactorBundle\\SchebTwoFactorBundle" to be registered');
+
+        $this->load(['two_factor' => ['method' => 'totp']], []);
+    }
+
+    public function testTheSecondFactorByEmailDeclaresItsServices(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load(['two_factor' => ['method' => 'email'], 'mailer' => ['sender' => 'no-reply@example.com']]);
+
+        self::assertSame(AuthCodeMailer::class, $container->getDefinition('iq2i_herse.two_factor.auth_code_mailer')->getClass());
+        self::assertSame(TwoFactorEventRelay::class, $container->getDefinition('iq2i_herse.two_factor.event_relay')->getClass());
+        self::assertSame(
+            [['event' => 'scheb_two_factor.authentication.success', 'method' => 'onSuccess'], ['event' => 'scheb_two_factor.authentication.failure', 'method' => 'onFailure']],
+            $container->getDefinition('iq2i_herse.two_factor.event_relay')->getTag('kernel.event_listener'),
+        );
+        self::assertFalse($container->hasDefinition('iq2i_herse.two_factor.trusted_device_manager'));
+    }
+
+    public function testTheSecondFactorByEmailRequiresASender(): void
+    {
+        $this->requireScheb();
+
+        $this->expectExceptionMessage('iq2i_herse.mailer.sender is required');
+
+        $this->load(['two_factor' => ['method' => 'email']]);
+    }
+
+    public function testTheSecondFactorByTotpSendsNoEmail(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load(['two_factor' => ['method' => 'totp']]);
+
+        self::assertTrue($container->hasDefinition('iq2i_herse.two_factor.event_relay'));
+        self::assertFalse($container->hasDefinition('iq2i_herse.two_factor.auth_code_mailer'));
+        self::assertFalse($container->hasDefinition('iq2i_herse.mailer'));
+    }
+
+    public function testTheDeviceBridgeDeclaresTheTrustedDeviceManager(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load([
+            'two_factor' => ['method' => 'totp', 'trusted_devices' => true],
+            'trusted_devices' => ['firewalls' => ['main' => null]],
+            'mailer' => ['sender' => 'no-reply@example.com'],
+        ]);
+
+        self::assertSame(TrustedDeviceManager::class, $container->getDefinition('iq2i_herse.two_factor.trusted_device_manager')->getClass());
+    }
+
+    public function testTheDeviceBridgeRequiresTheTrustedDevices(): void
+    {
+        $this->requireScheb();
+
+        $this->expectExceptionMessage('iq2i_herse.two_factor.trusted_devices requires iq2i_herse.trusted_devices to be enabled');
+
+        $this->load(['two_factor' => ['method' => 'totp', 'trusted_devices' => true]]);
+    }
+
+    /**
+     * @param list<array<string, mixed>>          $configs
+     * @param array<string, array<string, mixed>> $expected
+     */
+    #[DataProvider('provideTheSchebDefaults')]
+    public function testSchebReceivesTheDefaultsOfTheMethod(array $configs, array $expected): void
+    {
+        $this->requireScheb();
+
+        $container = $this->newContainer();
+        $herse = (new IQ2iHerseBundle())->getContainerExtension();
+        $scheb = (new SchebTwoFactorBundle())->getContainerExtension();
+        self::assertInstanceOf(PrependExtensionInterface::class, $herse);
+        self::assertNotNull($scheb);
+        $container->registerExtension($herse);
+        $container->registerExtension($scheb);
+        foreach ($configs as $config) {
+            $container->loadFromExtension('iq2i_herse', $config);
+        }
+        $herse->prepend($container);
+
+        self::assertSame([] === $expected ? [] : [$expected], $container->getExtensionConfig('scheb_two_factor'));
+    }
+
+    /**
+     * @return iterable<string, array{list<array<string, mixed>>, array<string, array<string, mixed>>}>
+     */
+    public static function provideTheSchebDefaults(): iterable
+    {
+        $email = ['email' => ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6]];
+
+        yield 'email' => [[['two_factor' => ['method' => 'email']]], $email];
+        yield 'email enabled by its method only' => [[['two_factor' => ['enabled' => true, 'method' => 'email']]], $email];
+        yield 'totp without application name' => [[['two_factor' => ['method' => 'totp']]], ['totp' => ['enabled' => true]]];
+        yield 'totp with the application name as issuer' => [[['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => ['enabled' => true, 'issuer' => 'Acme']]];
+        yield 'the last application name wins' => [[['mailer' => ['app_name' => 'Old']], ['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => ['enabled' => true, 'issuer' => 'Acme']]];
+        yield 'with the device bridge' => [[['two_factor' => ['method' => 'email', 'trusted_devices' => true]]], $email + ['trusted_device' => ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager']]];
+        yield 'the method of the last configuration wins' => [[['two_factor' => ['method' => 'email']], ['two_factor' => ['method' => 'totp']]], ['totp' => ['enabled' => true]]];
+        yield 'disabled' => [[['two_factor' => false]], []];
+        yield 'disabled by a later configuration' => [[['two_factor' => ['method' => 'email']], ['two_factor' => false]], []];
+        yield 'no method' => [[['two_factor' => true]], []];
+        yield 'not configured' => [[['password_policy' => true]], []];
+    }
+
+    public function testNothingIsPrependedToSchebWhenItsBundleIsMissing(): void
+    {
+        $container = $this->newContainer();
+        $container->prependExtensionConfig('iq2i_herse', ['two_factor' => ['method' => 'email']]);
+
+        $extension = (new IQ2iHerseBundle())->getContainerExtension();
+        self::assertInstanceOf(PrependExtensionInterface::class, $extension);
+        $extension->prepend($container);
+
+        self::assertSame([], $container->getExtensionConfig('scheb_two_factor'));
+    }
+
+    private function requireScheb(): void
+    {
+        if (!class_exists(SchebTwoFactorBundle::class)) {
+            self::markTestSkipped('scheb/2fa-bundle is not installed.');
+        }
+    }
+
     private function currentExceptionHandler(): ?callable
     {
         $handler = set_exception_handler(null);
@@ -593,18 +771,28 @@ final class IQ2iHerseBundleTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param array<string, string>|null $bundles the registered bundles, the ones of a project using scheb by default
      */
-    private function load(array $config): ContainerBuilder
+    private function newContainer(?array $bundles = null): ContainerBuilder
     {
         // AbstractBundle's extension reads these on older Symfony versions, without guarding the lookup.
-        $container = new ContainerBuilder(new ParameterBag([
+        return new ContainerBuilder(new ParameterBag([
             'kernel.environment' => 'test',
             'kernel.debug' => true,
             'kernel.build_dir' => sys_get_temp_dir(),
             'kernel.project_dir' => __DIR__,
             'kernel.secret' => 'secret',
+            'kernel.bundles' => $bundles ?? ['IQ2iHerseBundle' => IQ2iHerseBundle::class, 'SchebTwoFactorBundle' => SchebTwoFactorBundle::class],
         ]));
+    }
+
+    /**
+     * @param array<string, mixed>       $config
+     * @param array<string, string>|null $bundles the registered bundles, the ones of a project using scheb by default
+     */
+    private function load(array $config, ?array $bundles = null): ContainerBuilder
+    {
+        $container = $this->newContainer($bundles);
         $extension = (new IQ2iHerseBundle())->getContainerExtension();
         self::assertNotNull($extension);
         $container->registerExtension($extension);

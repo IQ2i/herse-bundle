@@ -21,6 +21,6 @@ enum TrustLevel: string
     /** The device has already logged in successfully: no alert on its next login. */
     case Known = 'known';
 
-    /** The device has passed a second factor. Reserved for the two-factor feature. */
+    /** The device has passed a second factor and the user asked to trust it: the two-factor feature does not ask for the second factor again. */
     case Verified = 'verified';
 }

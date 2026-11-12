@@ -22,14 +22,15 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 final class AccountApplication
 {
     /**
-     * @param array<string, mixed>                $herse     options of iq2i_herse, besides the users and the mailer
+     * @param array<string, mixed>                $herse        options of iq2i_herse, besides the users and the mailer
      * @param array<string, array<string, mixed>> $firewalls
+     * @param class-string                        $accountClass the user class: "Account", or an entity of another directory
      */
-    public static function load(ContainerConfigurator $container, array $herse, array $firewalls, string $passwordField = 'password'): void
+    public static function load(ContainerConfigurator $container, array $herse, array $firewalls, string $passwordField = 'password', string $accountClass = Account::class): void
     {
         $container->extension('iq2i_herse', [
             'users' => [
-                Account::class => ['type' => 'customer', 'email' => 'email', 'locale' => 'locale', 'password' => $passwordField],
+                $accountClass => ['type' => 'customer', 'email' => 'email', 'locale' => 'locale', 'password' => $passwordField],
             ],
             'mailer' => ['sender' => 'no-reply@example.com', 'sender_name' => 'Example', 'app_name' => 'Example shop'],
         ] + $herse);
@@ -46,12 +47,17 @@ final class AccountApplication
                 'is_bundle' => false,
                 'dir' => '%kernel.project_dir%/src/Entity',
                 'prefix' => 'IQ2i\HerseBundle\Tests\TestApplication\Entity',
-            ]]],
+            ]] + (Account::class === $accountClass ? [] : ['TestTwoFactor' => [
+                'type' => 'attribute',
+                'is_bundle' => false,
+                'dir' => '%kernel.project_dir%/src/TwoFactorEntity',
+                'prefix' => 'IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity',
+            ]])],
         ]);
         $container->extension('security', [
             // Cost 5 while the stored hashes of some tests use cost 4: such a hash needs a rehash at login.
-            'password_hashers' => [Account::class => ['algorithm' => 'bcrypt', 'cost' => 5]],
-            'providers' => ['accounts' => ['entity' => ['class' => Account::class, 'property' => 'email']]],
+            'password_hashers' => [$accountClass => ['algorithm' => 'bcrypt', 'cost' => 5]],
+            'providers' => ['accounts' => ['entity' => ['class' => $accountClass, 'property' => 'email']]],
             'firewalls' => $firewalls,
         ]);
 
