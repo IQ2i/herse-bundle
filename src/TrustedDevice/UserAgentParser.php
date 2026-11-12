@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\TrustedDevice;
 
 /**
- * Derives a short label from a User-Agent, for display only. Deliberately minimal and language-neutral:
+ * Derives a short label from a User-Agent, for display only, null when it is not recognised. Deliberately minimal and language-neutral:
  * a full detection library is overkill for a label in an alert email.
  *
  * @internal
@@ -51,7 +51,8 @@ final class UserAgentParser
             null !== $browser && null !== $system => \sprintf('%s (%s)', $browser, $system),
             null !== $browser => $browser,
             null !== $system => $system,
-            default => mb_substr(trim($userAgent), 0, 100),
+            // Never the raw header: it is chosen by the client and ends up in an email sent to the account owner.
+            default => null,
         };
     }
 

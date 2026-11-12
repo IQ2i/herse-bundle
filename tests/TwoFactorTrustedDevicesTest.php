@@ -16,6 +16,7 @@ namespace IQ2i\HerseBundle\Tests;
 use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
+use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 
 /**
  * The device registry replaces the trusted device cookie of scheb: a trusted device skips the second factor.
@@ -88,6 +89,33 @@ final class TwoFactorTrustedDevicesTest extends TwoFactorKernelTestCase
         $this->signIn();
 
         $this->assertSecondFactorAsked($this->visitPrivatePage());
+    }
+
+    public function testTheTrustEndsAFixedTimeAfterTheVerificationWhateverTheLogins(): void
+    {
+        $this->twoFactorAccount();
+        $this->signIn();
+        $this->submitCode($this->emailedCode(), trustDevice: true);
+        self::assertNotNull($this->devices()[0]->getVerifiedAt());
+        $this->entityManager()->createQuery('UPDATE '.TrustedDevice::class.' d SET d.verifiedAt = :past')->setParameter('past', new \DateTimeImmutable('-31 days'))->execute();
+
+        $this->closeSession();
+        $this->signIn();
+
+        $this->assertSecondFactorAsked($this->visitPrivatePage());
+
+        $this->submitCode($this->emailedCode(), trustDevice: true);
+        $this->assertLoggedIn();
+        self::assertCount(1, $this->devices(), 'The device is still known.');
+        self::assertSame(
+            ['Your sign-in code', 'New sign-in to your account', 'Your sign-in code'],
+            array_map(static fn (TemplatedEmail $mail): string => $mail->getSubject() ?? '', $this->mails()),
+            'A known device is not announced as a new one.',
+        );
+
+        $this->closeSession();
+        $this->signIn();
+        $this->assertLoggedIn();
     }
 
     public function testAnExpiredDeviceIsAskedForTheSecondFactorAgain(): void

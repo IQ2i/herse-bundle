@@ -22,12 +22,14 @@ use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
  *
  * The user is a neutral reference (type + identifier), never a Doctrine relation. Only the hash of the cookie token
  * is stored: a leak of the table cannot be used to forge a cookie. A browser shared by several users has one row per user.
+ *
+ * Not final: Doctrine generates a proxy for every mapped class unless the native lazy objects are enabled.
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'iq2i_herse_trusted_device')]
 #[ORM\UniqueConstraint(name: 'uniq_iq2i_herse_device', columns: ['user_type', 'user_identifier', 'firewall', 'token_hash'])]
 #[ORM\Index(name: 'idx_iq2i_herse_device_expires_at', columns: ['expires_at'])]
-final class TrustedDevice
+class TrustedDevice
 {
     // Assigned by Doctrine.
     #[ORM\Id, ORM\GeneratedValue, ORM\Column]
@@ -38,6 +40,9 @@ final class TrustedDevice
 
     #[ORM\Column(name: 'trust_level', length: 16, enumType: TrustLevel::class)]
     private TrustLevel $trustLevel = TrustLevel::Known;
+
+    #[ORM\Column(name: 'verified_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $verifiedAt = null; // @phpstan-ignore property.unusedType
 
     public function __construct(
         #[ORM\Column(name: 'user_type', length: 64)]
@@ -103,6 +108,15 @@ final class TrustedDevice
         return $this->trustLevel;
     }
 
+    /**
+     * When the device last passed a second factor and was trusted by the user. The second factor is skipped for
+     * two_factor.trusted_lifetime from this date, whatever the logins made since.
+     */
+    public function getVerifiedAt(): ?\DateTimeImmutable
+    {
+        return $this->verifiedAt;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -121,23 +135,5 @@ final class TrustedDevice
     public function isExpired(\DateTimeImmutable $now = new \DateTimeImmutable()): bool
     {
         return $this->expiresAt <= $now;
-    }
-
-    /**
-     * @internal
-     */
-    public function markVerified(): void
-    {
-        $this->trustLevel = TrustLevel::Verified;
-    }
-
-    /**
-     * @internal
-     */
-    public function markUsed(\DateTimeImmutable $now, ?string $ip, \DateTimeImmutable $expiresAt): void
-    {
-        $this->lastUsedAt = $now;
-        $this->lastIp = $ip;
-        $this->expiresAt = $expiresAt;
     }
 }

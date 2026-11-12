@@ -100,10 +100,9 @@ final class TrustedDeviceListener
 
         $token = $this->cookies->token($request, $firewall);
         if (null !== $token) {
-            $device = $this->repository->findOne($reference, $firewall, hash('sha256', $token));
-            if (null !== $device) {
-                $device->markUsed($now, $ip, $expiresAt);
-                $this->repository->save();
+            $id = $this->repository->findActiveId($reference, $firewall, hash('sha256', $token), $now);
+            if (null !== $id) {
+                $this->repository->touch($id, $now, $ip, $expiresAt);
                 $this->cookies->set($firewall, $token);
 
                 return;
@@ -119,7 +118,7 @@ final class TrustedDeviceListener
         // later a device it prepared. A browser shared by two users therefore trusts the last one to log in.
         $token = bin2hex(random_bytes(32));
         $device = new TrustedDevice($reference->type, $reference->identifier, $firewall, hash('sha256', $token), $this->userAgentParser->parse($request->headers->get('User-Agent')), $ip, $now, $expiresAt);
-        $this->repository->persist($device);
+        $this->repository->insert($device);
         $this->cookies->set($firewall, $token);
 
         if (!$alreadyAlerted) {
@@ -133,8 +132,7 @@ final class TrustedDeviceListener
     private function warnBeforeSecondFactor(TwoFactorTokenInterface $token, object $user, UserReference $reference, string $firewall, Request $request, bool $onlyKnown): void
     {
         $cookie = $this->cookies->token($request, $firewall);
-        $device = null === $cookie ? null : $this->repository->findOne($reference, $firewall, hash('sha256', $cookie));
-        if ($onlyKnown || (null !== $device && !$device->isExpired())) {
+        if ($onlyKnown || (null !== $cookie && null !== $this->repository->findActiveId($reference, $firewall, hash('sha256', $cookie), new \DateTimeImmutable()))) {
             return;
         }
 

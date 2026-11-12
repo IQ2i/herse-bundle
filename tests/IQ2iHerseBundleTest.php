@@ -725,7 +725,29 @@ final class IQ2iHerseBundleTest extends TestCase
             'mailer' => ['sender' => 'no-reply@example.com'],
         ]);
 
-        self::assertSame(TrustedDeviceManager::class, $container->getDefinition('iq2i_herse.two_factor.trusted_device_manager')->getClass());
+        $manager = $container->getDefinition('iq2i_herse.two_factor.trusted_device_manager');
+        self::assertSame(TrustedDeviceManager::class, $manager->getClass());
+        self::assertSame('30 days', $manager->getArgument(4));
+    }
+
+    public function testTheLifetimeOfTheVerificationIsConfigurable(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load([
+            'two_factor' => ['method' => 'totp', 'trusted_devices' => true, 'trusted_lifetime' => '7 days'],
+            'trusted_devices' => ['firewalls' => ['main' => null]],
+            'mailer' => ['sender' => 'no-reply@example.com'],
+        ]);
+
+        self::assertSame('7 days', $container->getDefinition('iq2i_herse.two_factor.trusted_device_manager')->getArgument(4));
+    }
+
+    public function testAnInvalidLifetimeOfTheVerificationIsRejected(): void
+    {
+        $this->expectExceptionMessage('"soon" is not a valid interval');
+
+        $this->load(['two_factor' => ['method' => 'totp', 'trusted_lifetime' => 'soon']]);
     }
 
     public function testTheDeviceBridgeRequiresTheTrustedDevices(): void

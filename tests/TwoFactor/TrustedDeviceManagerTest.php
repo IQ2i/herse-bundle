@@ -69,7 +69,7 @@ final class TrustedDeviceManagerTest extends TwoFactorKernelTestCase
 
             self::assertFalse($manager->isTrustedDevice($account, 'main'));
         }
-        self::assertFalse((new TrustedDeviceManager($this->resolver(), new TrustedDeviceRepository($this->entityManager()), $this->cookies(), new RequestStack()))->isTrustedDevice($account, 'main'));
+        self::assertFalse((new TrustedDeviceManager($this->resolver(), new TrustedDeviceRepository($this->entityManager()), $this->cookies(), new RequestStack(), '30 days'))->isTrustedDevice($account, 'main'));
         self::assertSame(TrustLevel::Known, $this->devices()[0]->getTrustLevel());
     }
 
@@ -109,7 +109,7 @@ final class TrustedDeviceManagerTest extends TwoFactorKernelTestCase
         $stack = new RequestStack();
         $stack->push(Request::create('/', cookies: null === $cookie ? [] : ['herse_device_main' => $cookie]));
 
-        return new TrustedDeviceManager($this->resolver(), new TrustedDeviceRepository($this->entityManager()), $this->cookies(), $stack);
+        return new TrustedDeviceManager($this->resolver(), new TrustedDeviceRepository($this->entityManager()), $this->cookies(), $stack, '30 days');
     }
 
     private function cookies(): DeviceCookies

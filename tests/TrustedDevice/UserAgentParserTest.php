@@ -38,8 +38,8 @@ final class UserAgentParserTest extends TestCase
         yield 'chrome on Android, which also says Linux' => ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/128.0.0.0 Mobile Safari/537.36', 'Chrome (Android)'];
         yield 'a browser without a known system' => ['Firefox/130.0', 'Firefox'];
         yield 'a system without a known browser' => ['Custom client (Windows NT 10.0)', 'Windows'];
-        yield 'an unknown client' => ['curl/8.4.0', 'curl/8.4.0'];
-        yield 'a long unknown client is truncated' => [str_repeat('x', 150), str_repeat('x', 100)];
+        yield 'an unknown client' => ['curl/8.4.0', null];
+        yield 'a text chosen by the client' => ['Your account is locked, call +33 1 23 45 67 89', null];
         yield 'no user agent' => [null, null];
         yield 'a blank user agent' => ['  ', null];
     }

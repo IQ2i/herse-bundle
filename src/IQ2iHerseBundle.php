@@ -207,7 +207,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
      *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
-     *     two_factor: array{enabled: bool, method?: 'email'|'totp', trusted_devices: bool, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
+     *     two_factor: array{enabled: bool, method?: 'email'|'totp', trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -576,6 +576,15 @@ final class IQ2iHerseBundle extends AbstractBundle
                     ->info('Skip the second factor on a device that passed it and was trusted by the user, with the device registry in place of the cookie of scheb. Requires trusted_devices and scheb/2fa-trusted-device.')
                     ->defaultFalse()
                 ->end()
+                ->scalarNode('trusted_lifetime')
+                    ->info('With trusted_devices, how long a verified device skips the second factor, as a relative date format (e.g. "30 days"). Counted from the verification: the logins do not extend it.')
+                    ->defaultValue('30 days')
+                    ->cannotBeEmpty()
+                    ->validate()
+                        ->ifTrue(static fn (string $value): bool => !self::isValidInterval($value))
+                        ->thenInvalid('%s is not a valid interval.')
+                    ->end()
+                ->end()
             ->end()
         ;
 
@@ -595,7 +604,7 @@ final class IQ2iHerseBundle extends AbstractBundle
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', trusted_devices: bool, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
      */
     private function loadTwoFactor(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -659,6 +668,7 @@ final class IQ2iHerseBundle extends AbstractBundle
                 new Reference('iq2i_herse.trusted_devices.repository'),
                 new Reference('iq2i_herse.trusted_devices.cookies'),
                 new Reference('request_stack'),
+                $config['two_factor']['trusted_lifetime'],
             ]);
         }
     }

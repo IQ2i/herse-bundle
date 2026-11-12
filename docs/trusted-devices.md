@@ -42,7 +42,9 @@ bin/console doctrine:migrations:diff
 bin/console doctrine:migrations:migrate
 ```
 
-The entity manager used is the default one.
+The entity manager used is the default one. The devices are written straight to the database, never through a flush:
+a login does not write the pending changes of your project, and a failing registry is logged without closing your
+entity manager.
 
 ## What is stored
 
@@ -57,8 +59,8 @@ User-Agent) are for display only: they never recognise a device, and the raw Use
   sent.
 - **Unknown or expired device**: it is registered with a new token, and the user is warned. A token chosen by the
   client is never adopted. A browser shared by two users trusts the last one to log in.
-- **Verified device**: a device that passed a second factor and was trusted by the user. It skips the second factor on
-  the next logins, see [two-factor authentication](two-factor.md).
+- **Verified device**: a device that passed a second factor and was trusted by the user. It skips the second factor
+  for a fixed time counted from `getVerifiedAt()`, see [two-factor authentication](two-factor.md).
 - **Remember-me**: refreshes an existing device, never registers one. Only interactive authenticators count: token
   authenticators (API) are ignored, as is a user of a class not declared in `users`.
 - **First login after the installation**: every user starts without any device. Set `notify_first_device: false` to

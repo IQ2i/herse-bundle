@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\Tests;
 
 use IQ2i\HerseBundle\Event\NewDeviceEvent;
+use IQ2i\HerseBundle\Tests\TestApplication\Entity\Account;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
@@ -288,6 +289,32 @@ final class TrustedDevicesTest extends TrustedDevicesKernelTestCase
 
         self::assertNotNull($this->cookie($response));
         self::assertSame(['The trusted device could not be registered.'], $this->logger()->messages('error'));
+    }
+
+    public function testALoginNeverWritesThePendingChangesOfTheProject(): void
+    {
+        $this->account();
+        $bob = $this->account('bob@example.com');
+        $bob->setEmail('pending@example.com');
+
+        $token = $this->token($this->signIn());
+        $this->signIn(cookies: ['herse_device_main' => $token]);
+
+        $table = $this->entityManager()->getClassMetadata(Account::class)->getTableName();
+        self::assertSame('bob@example.com', $this->entityManager()->getConnection()->fetchOne(\sprintf('SELECT email FROM %s WHERE id = ?', $table), [$bob->getId()]));
+        self::assertCount(1, $this->devices());
+    }
+
+    public function testAFailingRegistryNeverFailsTheLoginNorClosesTheEntityManager(): void
+    {
+        $this->account();
+        $this->entityManager()->getConnection()->executeStatement('DROP TABLE iq2i_herse_trusted_device');
+
+        $response = $this->signIn();
+
+        self::assertNull($this->cookie($response));
+        self::assertTrue($this->entityManager()->isOpen());
+        self::assertContains('The trusted device could not be registered.', $this->logger()->messages('error'));
     }
 
     public function testAFailedLoginRegistersNothing(): void

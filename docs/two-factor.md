@@ -28,6 +28,7 @@ iq2i_herse:
         enabled: true
         method: email          # or totp, required
         trusted_devices: false # a trusted device skips the second factor, requires trusted_devices
+        trusted_lifetime: '30 days' # how long a trusted device skips it, counted from its verification
         throttling:            # wrong second factors allowed to a user, enabled by default
             limit: 5
             interval: '15 minutes'
@@ -47,8 +48,10 @@ iq2i_herse:
   soon as the password is accepted.
 - **Trusted devices**: with `trusted_devices: true`, ticking the "trust this device" box of the code form (the
   `_trusted` parameter of scheb) makes the device of the [registry](trusted-devices.md) *verified*. A verified device
-  skips the second factor until it expires or is revoked: revoking it through `TrustedDevices` brings the second
-  factor back. The cookie of scheb is not used any more, so its `trusted_device` options (`cookie_name`,
+  skips the second factor for `trusted_lifetime`, counted from the verification: unlike the expiration of the device,
+  it is not extended by the logins, so a device in regular use is asked for the second factor again once the time is
+  up, without being announced as a new one. Revoking it through `TrustedDevices`, or its expiration, brings the
+  second factor back earlier. The cookie of scheb is not used any more, so its `trusted_device` options (`cookie_name`,
   `lifetime`...) have no effect: the cookie and its lifetime come from `trusted_devices.firewalls`, and the firewall
   must be watched there. Trusting a device is up to the user, nothing is verified without it.
 - **Registering the device**: while the second factor is pending, no device is registered and no email is sent: they
