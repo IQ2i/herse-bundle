@@ -25,6 +25,7 @@ use IQ2i\HerseBundle\User\UserResolver;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authentication\Token\SwitchUserToken;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -162,16 +163,20 @@ final class PasswordChangeListener
             return PasswordChangeContext::Console;
         }
 
-        $authenticated = $this->tokenStorage->getToken()?->getUser();
+        $token = $this->tokenStorage->getToken();
+        $authenticated = $token?->getUser();
         if (null === $authenticated) {
             return PasswordChangeContext::Self;
         }
 
+        // Somebody impersonating the owner is not the owner.
+        if ($token instanceof SwitchUserToken) {
+            return PasswordChangeContext::OtherUser;
+        }
+
         $current = $this->users->reference($authenticated);
 
-        return null !== $current && $current->type === $reference->type && $current->identifier === $reference->identifier
-            ? PasswordChangeContext::Self
-            : PasswordChangeContext::OtherUser;
+        return null !== $current && $current->equals($reference) ? PasswordChangeContext::Self : PasswordChangeContext::OtherUser;
     }
 
     private function assertMapped(EntityManagerInterface $entityManager, object $user, string $property): void

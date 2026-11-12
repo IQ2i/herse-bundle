@@ -472,7 +472,7 @@ final class IQ2iHerseBundle extends AbstractBundle
         ]);
 
         foreach ($config['users'] as $class => $user) {
-            if (!property_exists($class, $user['password'])) {
+            if (!self::hasProperty($class, $user['password'])) {
                 throw new InvalidConfigurationException(\sprintf('iq2i_herse.users: class "%s" has no "%s" property.', $class, $user['password']));
             }
         }
@@ -488,7 +488,7 @@ final class IQ2iHerseBundle extends AbstractBundle
         ;
 
         // Public: projects switch the notification off around fixtures or imports.
-        $services->set(PasswordChangeNotification::class)->public();
+        $services->set(PasswordChangeNotification::class)->public()->tag('kernel.reset', ['method' => 'reset']);
 
         $services->set('iq2i_herse.password_change.listener', PasswordChangeListener::class)
             ->args([
@@ -866,7 +866,7 @@ final class IQ2iHerseBundle extends AbstractBundle
                 continue;
             }
 
-            if (!property_exists($class, $property)) {
+            if (!self::hasProperty($class, $property)) {
                 throw new InvalidConfigurationException(\sprintf('iq2i_herse.users: class "%s" has no "%s" property.', $class, $property));
             }
 
@@ -874,6 +874,22 @@ final class IQ2iHerseBundle extends AbstractBundle
         }
 
         return $mapping;
+    }
+
+    /**
+     * property_exists() does not see a private property declared by a parent class, e.g. a mapped superclass.
+     *
+     * @param class-string $class
+     */
+    private static function hasProperty(string $class, string $property): bool
+    {
+        for ($reflection = new \ReflectionClass($class); false !== $reflection; $reflection = $reflection->getParentClass()) {
+            if ($reflection->hasProperty($property)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Mirrors how RateLimiterFactory parses the interval, which fails on the first use otherwise.

@@ -13,10 +13,15 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\PasswordChange;
 
+use Symfony\Contracts\Service\ResetInterface;
+
 /**
  * Switches the password change notification off for a while, e.g. around fixtures or imports.
+ *
+ * A suspension never outlives the request or the message being handled: a long-running worker starts the next one
+ * with the notification on.
  */
-final class PasswordChangeNotification
+final class PasswordChangeNotification implements ResetInterface
 {
     private int $suspensions = 0;
 
@@ -51,5 +56,10 @@ final class PasswordChangeNotification
     public function isEnabled(): bool
     {
         return 0 === $this->suspensions;
+    }
+
+    public function reset(): void
+    {
+        $this->suspensions = 0;
     }
 }

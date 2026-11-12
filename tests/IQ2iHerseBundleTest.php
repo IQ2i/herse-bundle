@@ -21,6 +21,7 @@ use IQ2i\HerseBundle\IQ2iHerseBundle;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeListener;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
+use IQ2i\HerseBundle\Tests\TestApplication\ChildUser;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
 use IQ2i\HerseBundle\Tests\TestApplication\User;
 use IQ2i\HerseBundle\TrustedDevice\DeviceCookies;
@@ -215,6 +216,22 @@ final class IQ2iHerseBundleTest extends TestCase
         );
     }
 
+    public function testAPropertyPrivateToAParentClassIsFound(): void
+    {
+        $container = $this->load([
+            'password_policy' => true,
+            'password_change_notification' => true,
+            'mailer' => ['sender' => 'no-reply@example.com'],
+            'users' => [ChildUser::class => ['type' => 'shop', 'email' => 'email', 'plain_password' => 'plainPassword']],
+        ]);
+
+        self::assertSame(
+            [ChildUser::class => ['property' => 'plainPassword', 'groups' => ['Default']]],
+            $container->getDefinition(PasswordPolicyLoader::class)->getArgument(0),
+        );
+        self::assertTrue($container->hasDefinition('iq2i_herse.password_change.listener'));
+    }
+
     public function testAnUnknownPlainPasswordPropertyIsRejected(): void
     {
         $this->expectExceptionMessage('has no "missing" property');
@@ -381,6 +398,7 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertCount(1, $window->getTag('kernel.reset'));
 
         self::assertTrue($container->getDefinition(PasswordChangeNotification::class)->isPublic());
+        self::assertSame([['method' => 'reset']], $container->getDefinition(PasswordChangeNotification::class)->getTag('kernel.reset'));
         self::assertSame(['no-reply@example.com', null, null], \array_slice($container->getDefinition('iq2i_herse.mailer')->getArguments(), 3));
     }
 

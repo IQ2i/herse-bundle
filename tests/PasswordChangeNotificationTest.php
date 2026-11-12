@@ -22,6 +22,9 @@ use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mailer\Event\MessageEvent;
 use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authentication\Token\SwitchUserToken;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
 final class PasswordChangeNotificationTest extends PasswordChangeKernelTestCase
@@ -166,6 +169,19 @@ final class PasswordChangeNotificationTest extends PasswordChangeKernelTestCase
         self::assertCount(1, $this->mails());
     }
 
+    public function testASuspensionDoesNotOutliveTheRequest(): void
+    {
+        $account = $this->createAccount();
+        $notification = $this->service(PasswordChangeNotification::class, PasswordChangeNotification::class);
+        $notification->disable();
+
+        // What the kernel does between two requests or two messages of a long-running worker.
+        $notification->reset();
+
+        $this->changePassword($account);
+        self::assertCount(1, $this->mails());
+    }
+
     public function testTheNotificationIsResumedWhenTheSuspendedCodeThrows(): void
     {
         $account = $this->createAccount();
@@ -238,6 +254,20 @@ final class PasswordChangeNotificationTest extends PasswordChangeKernelTestCase
 
         self::assertSame(PasswordChangeContext::OtherUser, $this->contextOfTheLastEvent());
         self::assertCount(1, $this->mails());
+    }
+
+    public function testTheContextIsOtherUserWhenTheOwnerIsImpersonated(): void
+    {
+        $account = $this->createAccount();
+        $admin = new InMemoryUser('root', null, ['ROLE_ADMIN']);
+        $this->simulateWebRequest();
+        $this->service(TokenStorageInterface::class, 'security.token_storage')->setToken(
+            new SwitchUserToken($account, 'main', $account->getRoles(), new UsernamePasswordToken($admin, 'main', $admin->getRoles())),
+        );
+
+        $this->changePassword($account);
+
+        self::assertSame(PasswordChangeContext::OtherUser, $this->contextOfTheLastEvent());
     }
 
     public function testTheContextIsOtherUserWhenAnUndeclaredUserIsAuthenticated(): void

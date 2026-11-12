@@ -52,8 +52,16 @@ final class Mailer
         }
 
         try {
+            $sender = new Address($this->sender, $this->senderName ?? '');
+        } catch (MimeException $exception) {
+            $this->logger->error('iq2i_herse.mailer.sender is not a valid email address, the "{subject}" email is not sent.', ['subject' => $subject, 'exception' => $exception]);
+
+            return null;
+        }
+
+        try {
             $email = (new TemplatedEmail())
-                ->from(new Address($this->sender, $this->senderName ?? ''))
+                ->from($sender)
                 ->to($recipient)
                 ->subject($this->translator->trans($subject, ['%app_name%' => $this->appName ?? ''], self::TRANSLATION_DOMAIN, $locale))
                 ->htmlTemplate($template)

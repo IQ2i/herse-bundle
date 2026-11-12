@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\Tests\User;
 
 use IQ2i\HerseBundle\Tests\TestApplication\User;
+use IQ2i\HerseBundle\User\UserReference;
 use IQ2i\HerseBundle\User\UserResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\PropertyAccess\PropertyAccess;
@@ -32,6 +33,15 @@ final class UserResolverTest extends TestCase
         self::assertSame('user@example.com', $resolver->email($user));
         self::assertSame('fr', $resolver->locale($user));
         self::assertSame('plainPassword', $resolver->passwordProperty($user));
+    }
+
+    public function testTwoReferencesAreEqualWhenTheirTypeAndIdentifierAre(): void
+    {
+        $reference = new UserReference('shop', '42');
+
+        self::assertTrue($reference->equals(new UserReference('shop', '42')));
+        self::assertFalse($reference->equals(new UserReference('admin', '42')));
+        self::assertFalse($reference->equals(new UserReference('shop', '43')));
     }
 
     public function testTheLocaleIsNullWhenNoPropertyIsDeclared(): void

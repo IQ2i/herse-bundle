@@ -21,7 +21,7 @@ enum PasswordChangeContext
     /** From a web request, by the account owner or by someone holding a reset link (nobody is authenticated). */
     case Self;
 
-    /** From a web request, by another authenticated user, typically an administrator. */
+    /** From a web request, by another authenticated user, typically an administrator, including one impersonating the owner. */
     case OtherUser;
 
     /** Outside of any web request: a console command, a worker. */

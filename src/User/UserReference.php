@@ -23,4 +23,9 @@ final class UserReference
         public readonly string $identifier,
     ) {
     }
+
+    public function equals(self $other): bool
+    {
+        return $this->type === $other->type && $this->identifier === $other->identifier;
+    }
 }
