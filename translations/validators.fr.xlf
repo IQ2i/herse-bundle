@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+    <file source-language="en" target-language="fr" datatype="plaintext" original="file.ext">
+        <body>
+            <trans-unit id="herse.password.too_short">
+                <source>The password must be at least {{ limit }} characters long.</source>
+                <target>Le mot de passe doit contenir au moins {{ limit }} caractères.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.too_long">
+                <source>The password must be at most {{ limit }} characters long.</source>
+                <target>Le mot de passe doit contenir au plus {{ limit }} caractères.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.missing_lowercase">
+                <source>The password must contain a lowercase letter.</source>
+                <target>Le mot de passe doit contenir une lettre minuscule.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.missing_uppercase">
+                <source>The password must contain an uppercase letter.</source>
+                <target>Le mot de passe doit contenir une lettre majuscule.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.missing_digit">
+                <source>The password must contain a digit.</source>
+                <target>Le mot de passe doit contenir un chiffre.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.missing_special_character">
+                <source>The password must contain a special character.</source>
+                <target>Le mot de passe doit contenir un caractère spécial.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.not_enough_character_types">
+                <source>The password must contain at least {{ required }} of these character types: lowercase letter, uppercase letter, digit, special character.</source>
+                <target>Le mot de passe doit contenir au moins {{ required }} de ces types de caractères : lettre minuscule, lettre majuscule, chiffre, caractère spécial.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.invalid_characters">
+                <source>The password contains invalid characters.</source>
+                <target>Le mot de passe contient des caractères invalides.</target>
+            </trans-unit>
+            <trans-unit id="herse.password.mismatch">
+                <source>The password fields must match.</source>
+                <target>Les mots de passe doivent être identiques.</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

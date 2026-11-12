@@ -37,6 +37,45 @@ iq2i_herse:
     password_policy: true        # or { enabled: true }
 ```
 
+## Password policy
+
+Enable the feature and declare, for each user class, the property holding the plain password. The
+policy is then applied to it by the validator, with no annotation on your classes.
+
+```yaml
+iq2i_herse:
+    users:
+        App\Entity\User:
+            type: shop
+            email: email
+            plain_password: plainPassword
+        App\Entity\AdminUser:
+            type: admin
+            email: email
+            plain_password: { property: plainPassword, groups: [admin] }   # validation groups, "Default" otherwise
+    password_policy:
+        enabled: true
+        min_length: 12                 # default
+        max_length: 4096               # default, so that oversized inputs are never hashed
+        required_character_types: 4    # among lowercase, uppercase, digit, special; 0 disables the rule
+        check_compromised: false       # needs symfony/http-client
+```
+
+A special character is anything that is neither a letter nor a digit, so accented letters count as
+letters. Each broken rule has its own message, translated in English and French (`validators` domain).
+
+Outside of mapped properties (DTOs, API payloads, commands), use the constraint without argument:
+
+```php
+use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
+
+#[PasswordPolicy]
+public ?string $newPassword = null;
+```
+
+With `symfony/form`, `IQ2i\HerseBundle\Form\Type\PasswordPolicyType` is a repeated password field that
+applies the constraint.
+
 ## Development
 
 ```bash

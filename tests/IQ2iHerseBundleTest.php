@@ -13,12 +13,20 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
+use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
+use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
 use IQ2i\HerseBundle\Tests\TestApplication\User;
+use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
+use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
+use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
+use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\Form\Form;
 
 final class IQ2iHerseBundleTest extends TestCase
 {
@@ -110,6 +118,121 @@ final class IQ2iHerseBundleTest extends TestCase
         $this->expectExceptionMessage('The child config "email" under "iq2i_herse.users.'.User::class.'" must be configured');
 
         $this->load(['users' => [User::class => ['type' => 'admin']]]);
+    }
+
+    public function testThePasswordPolicyDeclaresItsServicesWithTheDefaultSettings(): void
+    {
+        $container = $this->load(['password_policy' => true]);
+
+        $validator = $container->getDefinition(PasswordPolicyValidator::class);
+        self::assertSame([12, 4096, 4, false], $validator->getArguments());
+        self::assertSame([['alias' => PasswordPolicy::VALIDATOR_SERVICE]], $validator->getTag('validator.constraint_validator'));
+        self::assertSame(class_exists(Form::class), $container->hasDefinition(PasswordPolicyType::class));
+        self::assertFalse($container->hasDefinition(PasswordPolicyLoader::class));
+    }
+
+    public function testThePasswordPolicySettingsAreConfigurable(): void
+    {
+        $container = $this->load(['password_policy' => ['min_length' => 8, 'max_length' => 64, 'required_character_types' => 2, 'check_compromised' => true]]);
+
+        self::assertSame([8, 64, 2, true], $container->getDefinition(PasswordPolicyValidator::class)->getArguments());
+    }
+
+    /**
+     * @param array<string, int> $policy
+     */
+    #[DataProvider('provideInvalidPasswordPolicies')]
+    public function testAnInvalidPasswordPolicyIsRejected(array $policy, string $message): void
+    {
+        $this->expectExceptionMessage($message);
+
+        $this->load(['password_policy' => $policy]);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function provideInvalidPasswordPolicies(): iterable
+    {
+        yield 'max below min' => [['min_length' => 20, 'max_length' => 10], 'max_length must be greater than or equal to min_length'];
+        yield 'no minimum' => [['min_length' => 0], 'iq2i_herse.password_policy.min_length'];
+        yield 'too many types' => [['required_character_types' => 5], 'iq2i_herse.password_policy.required_character_types'];
+        yield 'negative types' => [['required_character_types' => -1], 'iq2i_herse.password_policy.required_character_types'];
+    }
+
+    public function testThePlainPasswordShorthandAppliesToTheDefaultGroup(): void
+    {
+        $container = $this->load([
+            'password_policy' => true,
+            'users' => [User::class => ['type' => 'shop', 'email' => 'email', 'plain_password' => 'plainPassword']],
+        ]);
+
+        self::assertSame(
+            [User::class => ['property' => 'plainPassword', 'groups' => ['Default']]],
+            $container->getDefinition(PasswordPolicyLoader::class)->getArgument(0),
+        );
+    }
+
+    public function testThePlainPasswordGroupsAreConfigurable(): void
+    {
+        $container = $this->load([
+            'password_policy' => true,
+            'users' => [User::class => ['type' => 'shop', 'email' => 'email', 'plain_password' => ['property' => 'plainPassword', 'groups' => ['sylius']]]],
+        ]);
+
+        self::assertSame(
+            [User::class => ['property' => 'plainPassword', 'groups' => ['sylius']]],
+            $container->getDefinition(PasswordPolicyLoader::class)->getArgument(0),
+        );
+    }
+
+    public function testAnUnknownPlainPasswordPropertyIsRejected(): void
+    {
+        $this->expectExceptionMessage('has no "missing" property');
+
+        $this->load([
+            'password_policy' => true,
+            'users' => [User::class => ['type' => 'shop', 'email' => 'email', 'plain_password' => 'missing']],
+        ]);
+    }
+
+    public function testAPlainPasswordWithoutThePasswordPolicyIsRejected(): void
+    {
+        $this->expectExceptionMessage('"plain_password" requires iq2i_herse.password_policy to be enabled');
+
+        $this->load(['users' => [User::class => ['type' => 'shop', 'email' => 'email', 'plain_password' => 'plainPassword']]]);
+    }
+
+    public function testThePasswordPolicyLoaderIsRegisteredOnTheValidatorBuilder(): void
+    {
+        $container = new ContainerBuilder();
+        $container->register('validator.builder');
+        $container->register(PasswordPolicyLoader::class)->setArguments([[]]);
+
+        (new PasswordPolicyLoaderPass())->process($container);
+
+        $calls = $container->getDefinition('validator.builder')->getMethodCalls();
+        self::assertEquals([['addLoader', [new Reference(PasswordPolicyLoader::class)]]], $calls);
+    }
+
+    public function testThePasswordPolicyLoaderPassDoesNothingWithoutTheLoader(): void
+    {
+        $container = new ContainerBuilder();
+        $container->register('validator.builder');
+
+        (new PasswordPolicyLoaderPass())->process($container);
+
+        self::assertSame([], $container->getDefinition('validator.builder')->getMethodCalls());
+    }
+
+    public function testThePasswordPolicyLoaderPassDoesNothingWithoutTheValidator(): void
+    {
+        $container = new ContainerBuilder();
+        $container->register(PasswordPolicyLoader::class)->setArguments([[]]);
+
+        (new PasswordPolicyLoaderPass())->process($container);
+
+        self::assertFalse($container->has('validator.builder'));
     }
 
     private function currentExceptionHandler(): ?callable

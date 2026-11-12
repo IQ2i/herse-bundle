@@ -12,3 +12,8 @@ parameters:
         - tests/TestApplication/config/reference.php (?)
     fileExtensions:
         - php
+    ignoreErrors:
+        # AbstractType and FormInterface are generic from Symfony 7.x only.
+        -
+            identifier: missingType.generics
+            reportUnmatched: false

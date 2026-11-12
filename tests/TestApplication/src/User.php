@@ -20,6 +20,7 @@ final class User implements UserInterface
     public function __construct(
         public int $id = 1,
         public string $email = 'user@example.com',
+        public ?string $plainPassword = null,
     ) {
     }
 

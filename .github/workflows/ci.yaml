@@ -52,6 +52,26 @@ jobs:
                     {"php": "8.5", "symfony": "8.0.x-dev", "stability": "dev", "name": "PHP 8.5, Symfony 8.0.x-dev"}
                 ]
 
+    tests-without-form:
+        name: "Tests without symfony/form"
+        runs-on: ubuntu-latest
+        steps:
+            - name: "Checkout repository"
+              uses: actions/checkout@v7
+
+            - name: "Setup PHP"
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.4"
+                  coverage: none
+                  tools: composer:v2
+
+            - name: "Remove symfony/form"
+              run: composer remove --dev symfony/form --no-interaction --no-progress
+
+            - name: "Run PHPUnit"
+              run: vendor/bin/phpunit
+
     coverage:
         name: "Coverage"
         uses: IQ2i/.github/.github/workflows/php-tests.yml@main
