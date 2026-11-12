@@ -42,7 +42,8 @@ bin/console doctrine:migrations:diff
 bin/console doctrine:migrations:migrate
 ```
 
-The entity manager used is the default one. The devices are written straight to the database, never through a flush:
+The entity manager used is the default one. `enabled` must be a literal boolean, not an environment variable: the
+mapping is added before the container resolves them. The devices are written straight to the database, never through a flush:
 a login does not write the pending changes of your project, and a failing registry is logged without closing your
 entity manager.
 
@@ -62,7 +63,12 @@ User-Agent) are for display only: they never recognise a device, and the raw Use
 - **Verified device**: a device that passed a second factor and was trusted by the user. It skips the second factor
   for a fixed time counted from `getVerifiedAt()`, see [two-factor authentication](two-factor.md).
 - **Remember-me**: refreshes an existing device, never registers one. Only interactive authenticators count: token
-  authenticators (API) are ignored, as is a user of a class not declared in `users`.
+  authenticators (API) are ignored, as is a user of a class not declared in `users`. A custom authenticator (a single
+  sign-on for instance) counts when it implements `InteractiveAuthenticatorInterface`.
+- **Programmatic login**: `Security::login()` with an interactive authenticator, e.g. right after a registration,
+  registers the device and warns the user like any login.
+- **Unrecognised browser**: the label is empty and the email says "Unknown device". The text sent by the client is
+  never stored nor shown.
 - **First login after the installation**: every user starts without any device. Set `notify_first_device: false` to
   register their first device without an email (the event below is still dispatched).
 - **Retention**: the expired devices of a user are deleted when they log in. Schedule the command that deletes the

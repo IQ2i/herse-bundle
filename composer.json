@@ -60,7 +60,7 @@
     "symfony/twig-bundle": "To render the security emails",
     "symfony/form": "To use the PasswordPolicyType form type",
     "symfony/http-client": "To reject compromised passwords (password_policy.check_compromised)",
-    "symfony/rate-limiter": "To limit the login attempts (login_throttling)",
+    "symfony/rate-limiter": "To limit the login attempts (login_throttling) and the wrong second factors (two_factor.throttling)",
     "symfony/translation": "To translate the validation messages"
   },
   "config": {

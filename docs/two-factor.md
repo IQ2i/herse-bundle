@@ -36,6 +36,9 @@ iq2i_herse:
             lock_factory: auto             # a service id, or null to disable locking
 ```
 
+`enabled`, `method` and `trusted_devices` must be literal values, not environment variables: the defaults of scheb
+are prepared before the container resolves them.
+
 ## What the bundle does
 
 - **Defaults for scheb**: injected according to the method, under your own `scheb_two_factor` configuration which
@@ -107,5 +110,6 @@ deploying it.
 ## Checking the installation
 
 Log in with an account having the second factor enabled: you are redirected to the code form, and (email method) the
-code arrives. A wrong code dispatches `TwoFactorFailedEvent`, the right one `TwoFactorSucceededEvent`. With
+code arrives. A wrong code dispatches `TwoFactorFailedEvent`, the right one `TwoFactorSucceededEvent`. Five
+wrong codes in a row refuse the right one for 15 minutes and dispatch `TwoFactorThrottledEvent`. With
 `trusted_devices: true`, tick the "trust this device" box, close the session and log in again: the code is not asked.

@@ -60,6 +60,9 @@ $notification->withoutNotification(function () use ($importer): void {
 // or $notification->disable() then $notification->enable(), which can be nested
 ```
 
+A suspension ends with the request or the message being handled: a long-running worker starts the next one with the
+notification on, even when `enable()` was never called.
+
 ## Event
 
 `IQ2i\HerseBundle\Event\PasswordChangedEvent` is dispatched before the email is sent. It carries the `UserReference`,
@@ -67,8 +70,16 @@ the user object, the date of the change, the context and the email itself. A lis
 the sending, or `setEmail()` to replace the message. The context (`PasswordChangeContext`) is:
 
 - `Self` for a web request made by the owner or by somebody with no authenticated user (a reset link);
-- `OtherUser` for a web request made by another authenticated user;
+- `OtherUser` for a web request made by another authenticated user, including one impersonating the owner
+  (`switch_user`);
 - `Console` when there is no web request.
+
+## Limits
+
+- Only the changes flushed by the entity manager are detected: a password written with a DQL `UPDATE` or straight
+  through the connection sends nothing.
+- The email is sent once the flush has succeeded. When your code wraps the flush in its own transaction and rolls it
+  back afterwards, the email has already been sent.
 
 ## Checking the installation
 

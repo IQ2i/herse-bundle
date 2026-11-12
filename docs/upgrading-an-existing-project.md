@@ -69,12 +69,15 @@ Last, because it changes the login for the users ([guide](two-factor.md)).
 - With `trusted_devices: true`, the trusted device cookie of scheb is replaced by the registry: the devices trusted
   with the cookie of scheb are no longer recognised, and the users give the second factor once more.
 - Decide how a lost second factor is handled before deploying TOTP: the bundle provides no backup codes.
+- The wrong codes are throttled by default, which requires `symfony/rate-limiter` and, on several servers, a shared
+  cache pool (`two_factor.throttling.cache_pool`).
 
 ## Before going to production
 
 - [ ] The migration of `iq2i_herse_trusted_device` is part of the deployment.
 - [ ] `iq2i_herse.mailer.sender` belongs to a domain whose emails are delivered (SPF, DKIM).
-- [ ] The login throttling uses a shared cache and sees the right IP.
+- [ ] The login throttling and the second factor throttling use a shared cache, and the login throttling sees the
+      right IP.
 - [ ] The purge of the devices is scheduled.
 - [ ] Imports and fixtures that set passwords are wrapped, and the email your code used to send is removed.
 - [ ] The default templates are overridden in `templates/bundles/IQ2iHerseBundle/email/` if the emails must follow

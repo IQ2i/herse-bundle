@@ -49,13 +49,17 @@ One service serves every firewall: the cache keys include the name of the firewa
 - A successful login clears the identifier limits, never the IP one. It relies on the native listener, which does
   not do it on older Symfony versions (`symfony/security-http` 6.3.6 for instance).
 - A blocked attempt still consumes a token of the other limits, as in the native limiter.
+- An attempt that names no user (it failed before any identifier was read) only counts for the IP limit.
+- The second factor has its own limit, see [two-factor authentication](two-factor.md): the identifier limits are
+  cleared each time the password is accepted, so they do not bound the guesses of a code.
 - The counters live in the application cache: on a multi-server project, use a shared cache pool.
 - Behind a reverse proxy, the IP is only right when the `trusted_proxies` framework option is configured.
 
 ## Event
 
 `IQ2i\HerseBundle\Event\LoginThrottledEvent` is dispatched when a failed attempt exhausts a limit (once per window
-and limit), with the limit (`LoginThrottlingLimit`), the normalized identifier, the IP and the firewall.
+and limit), with the limit (`LoginThrottlingLimit`), the normalized identifier, the IP and the firewall. A successful
+login never dispatches it, even when it takes the last attempt allowed.
 
 ## Checking the installation
 
