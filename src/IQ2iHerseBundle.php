@@ -29,6 +29,7 @@ use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceRepository;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\TrustedDevice\UserAgentParser;
 use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
+use IQ2i\HerseBundle\TwoFactor\SecondFactorThrottler;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
 use IQ2i\HerseBundle\User\UserResolver;
@@ -206,7 +207,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
      *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
-     *     two_factor: array{enabled: bool, method?: 'email'|'totp', trusted_devices: bool},
+     *     two_factor: array{enabled: bool, method?: 'email'|'totp', trusted_devices: bool, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -576,6 +577,16 @@ final class IQ2iHerseBundle extends AbstractBundle
                     ->defaultFalse()
                 ->end()
             ->end()
+        ;
+
+        $throttling = $node->children()->arrayNode('throttling')
+            ->info('Wrong second factors allowed to a user on a firewall, whatever the IP. Requires symfony/rate-limiter.')
+            ->canBeDisabled()
+        ;
+        $this->addThrottlingWindow($throttling, 5, '15 minutes');
+        $this->addLimiterStorage($throttling);
+
+        $node
             ->validate()
                 ->ifTrue(static fn (array $twoFactor): bool => $twoFactor['enabled'] && !isset($twoFactor['method']))
                 ->thenInvalid('iq2i_herse.two_factor.method is required: "email" or "totp".')
@@ -584,7 +595,7 @@ final class IQ2iHerseBundle extends AbstractBundle
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', trusted_devices: bool}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', trusted_devices: bool, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
      */
     private function loadTwoFactor(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -619,6 +630,26 @@ final class IQ2iHerseBundle extends AbstractBundle
             $this->loadMailer($config, $container);
             $services->set('iq2i_herse.two_factor.auth_code_mailer', AuthCodeMailer::class)
                 ->args([new Reference('iq2i_herse.user_resolver'), new Reference('iq2i_herse.mailer'), new Reference('logger')])
+            ;
+        }
+
+        $throttling = $config['two_factor']['throttling'];
+        if ($throttling['enabled']) {
+            if (!ContainerBuilder::willBeAvailable('symfony/rate-limiter', RateLimiterFactory::class, ['iq2i/herse-bundle'])) {
+                throw new InvalidConfigurationException('iq2i_herse.two_factor.throttling requires the Rate Limiter component. Try running "composer require symfony/rate-limiter".');
+            }
+
+            $services->set('iq2i_herse.two_factor.throttling.storage', CacheStorage::class)->args([new Reference($throttling['cache_pool'])]);
+            $services->set('iq2i_herse.two_factor.throttling.limiter', RateLimiterFactory::class)->args([
+                ['id' => 'iq2i_herse_two_factor', 'policy' => 'fixed_window', 'limit' => $throttling['limit'], 'interval' => $throttling['interval']],
+                new Reference('iq2i_herse.two_factor.throttling.storage'),
+                $this->lockFactory($throttling['lock_factory']),
+            ]);
+            $services->set('iq2i_herse.two_factor.throttler', SecondFactorThrottler::class)
+                ->args([new Reference('iq2i_herse.two_factor.throttling.limiter'), new Reference('iq2i_herse.user_resolver'), new Reference('security.helper'), new Reference('event_dispatcher'), '%kernel.secret%'])
+                ->tag('kernel.event_listener', ['event' => 'scheb_two_factor.authentication.attempt', 'method' => 'onAttempt'])
+                ->tag('kernel.event_listener', ['event' => 'scheb_two_factor.authentication.failure', 'method' => 'onFailure'])
+                ->tag('kernel.event_listener', ['event' => 'scheb_two_factor.authentication.success', 'method' => 'onSuccess'])
             ;
         }
 
@@ -671,17 +702,33 @@ final class IQ2iHerseBundle extends AbstractBundle
             '15 minutes',
         );
 
-        $children
-            ->scalarNode('cache_pool')
-                ->info('Cache pool storing the counters. It must be shared between servers on a multi-server project.')
-                ->defaultValue('cache.rate_limiter')
-                ->cannotBeEmpty()
-            ->end()
-            ->scalarNode('lock_factory')
-                ->info('Lock factory service id, "auto" to use lock.factory when it exists, null to disable locking.')
-                ->defaultValue('auto')
+        $this->addLimiterStorage($node);
+    }
+
+    private function addLimiterStorage(ArrayNodeDefinition $node): void
+    {
+        $node
+            ->children()
+                ->scalarNode('cache_pool')
+                    ->info('Cache pool storing the counters. It must be shared between servers on a multi-server project.')
+                    ->defaultValue('cache.rate_limiter')
+                    ->cannotBeEmpty()
+                ->end()
+                ->scalarNode('lock_factory')
+                    ->info('Lock factory service id, "auto" to use lock.factory when it exists, null to disable locking.')
+                    ->defaultValue('auto')
+                ->end()
             ->end()
         ;
+    }
+
+    private function lockFactory(?string $lockFactory): ?Reference
+    {
+        return match ($lockFactory) {
+            null => null,
+            'auto' => class_exists(LockFactory::class) ? new Reference('lock.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE) : null,
+            default => new Reference($lockFactory),
+        };
     }
 
     private function addThrottlingWindow(ArrayNodeDefinition $window, int $limit, string $interval): void
@@ -711,11 +758,7 @@ final class IQ2iHerseBundle extends AbstractBundle
             throw new InvalidConfigurationException('iq2i_herse.login_throttling requires the Rate Limiter component. Try running "composer require symfony/rate-limiter".');
         }
 
-        $lockFactory = match ($throttling['lock_factory']) {
-            null => null,
-            'auto' => class_exists(LockFactory::class) ? new Reference('lock.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE) : null,
-            default => new Reference($throttling['lock_factory']),
-        };
+        $lockFactory = $this->lockFactory($throttling['lock_factory']);
 
         $services = $container->services();
         $services->set('iq2i_herse.login_throttling.storage', CacheStorage::class)->args([new Reference($throttling['cache_pool'])]);
@@ -740,6 +783,7 @@ final class IQ2iHerseBundle extends AbstractBundle
         // Public: it is referenced by id from the firewall "login_throttling.limiter" option of the project.
         $services->set('iq2i_herse.login_throttling.limiter', LoginRateLimiter::class)
             ->args([$factories['identifier_and_ip'], $factories['ip'], $factories['identifier'], new Reference('security.helper'), new Reference('event_dispatcher'), '%kernel.secret%'])
+            ->tag('kernel.event_listener', ['event' => LoginFailureEvent::class, 'method' => 'onLoginFailure'])
             ->public()
         ;
     }

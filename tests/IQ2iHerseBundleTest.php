@@ -645,6 +645,56 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertFalse($container->hasDefinition('iq2i_herse.two_factor.trusted_device_manager'));
     }
 
+    public function testTheSecondFactorIsThrottledByDefault(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load(['two_factor' => ['method' => 'totp']]);
+
+        self::assertEquals([new Reference('cache.rate_limiter')], $container->getDefinition('iq2i_herse.two_factor.throttling.storage')->getArguments());
+        self::assertSame(
+            ['id' => 'iq2i_herse_two_factor', 'policy' => 'fixed_window', 'limit' => 5, 'interval' => '15 minutes'],
+            $container->getDefinition('iq2i_herse.two_factor.throttling.limiter')->getArgument(0),
+        );
+        self::assertSame(
+            [
+                ['event' => 'scheb_two_factor.authentication.attempt', 'method' => 'onAttempt'],
+                ['event' => 'scheb_two_factor.authentication.failure', 'method' => 'onFailure'],
+                ['event' => 'scheb_two_factor.authentication.success', 'method' => 'onSuccess'],
+            ],
+            $container->getDefinition('iq2i_herse.two_factor.throttler')->getTag('kernel.event_listener'),
+        );
+    }
+
+    public function testTheSecondFactorThrottlingIsConfigurable(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load(['two_factor' => ['method' => 'totp', 'throttling' => ['limit' => 3, 'interval' => '1 hour', 'cache_pool' => 'cache.shared', 'lock_factory' => 'app.lock']]]);
+
+        self::assertEquals([new Reference('cache.shared')], $container->getDefinition('iq2i_herse.two_factor.throttling.storage')->getArguments());
+        $limiter = $container->getDefinition('iq2i_herse.two_factor.throttling.limiter');
+        self::assertSame(['id' => 'iq2i_herse_two_factor', 'policy' => 'fixed_window', 'limit' => 3, 'interval' => '1 hour'], $limiter->getArgument(0));
+        self::assertEquals(new Reference('app.lock'), $limiter->getArgument(2));
+    }
+
+    public function testTheSecondFactorThrottlingCanBeDisabled(): void
+    {
+        $this->requireScheb();
+
+        $container = $this->load(['two_factor' => ['method' => 'totp', 'throttling' => false]]);
+
+        self::assertFalse($container->hasDefinition('iq2i_herse.two_factor.throttler'));
+        self::assertFalse($container->hasDefinition('iq2i_herse.two_factor.throttling.limiter'));
+    }
+
+    public function testAnInvalidSecondFactorThrottlingIsRejected(): void
+    {
+        $this->expectExceptionMessage('"soon" is not a valid interval');
+
+        $this->load(['two_factor' => ['method' => 'totp', 'throttling' => ['interval' => 'soon']]]);
+    }
+
     public function testTheSecondFactorByEmailRequiresASender(): void
     {
         $this->requireScheb();

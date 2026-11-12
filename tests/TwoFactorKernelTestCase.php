@@ -18,6 +18,7 @@ use IQ2i\HerseBundle\Event\NewDeviceEvent;
 use IQ2i\HerseBundle\Event\TwoFactorFailedEvent;
 use IQ2i\HerseBundle\Event\TwoFactorSucceededEvent;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\TwoFactorAccount;
+use Psr\Cache\CacheItemPoolInterface;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -59,6 +60,7 @@ abstract class TwoFactorKernelTestCase extends DoctrineKernelTestCase
 
         parent::setUp();
 
+        $this->service(CacheItemPoolInterface::class, 'test.two_factor_throttling.cache')->clear();
         $this->cookies = [];
         $this->sentMails = [];
         $this->deviceEvents = [];

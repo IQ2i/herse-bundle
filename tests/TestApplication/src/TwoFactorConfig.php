@@ -37,14 +37,19 @@ final class TwoFactorConfig
             $main['two_factor'] = ['auth_form_path' => '/2fa', 'check_path' => '/2fa_check', 'prepare_on_login' => true];
         }
 
-        $herse = ['two_factor' => $twoFactor + ['enabled' => true]];
+        $herse = ['two_factor' => $twoFactor + ['enabled' => true, 'throttling' => ['cache_pool' => 'herse_two_factor_throttling']]];
         if ($withDevices) {
             $herse['trusted_devices'] = ['enabled' => true, 'firewalls' => ['main' => null]] + $devices;
         }
 
         AccountApplication::load($container, $herse, ['main' => $main], accountClass: $accountClass);
 
-        $container->extension('framework', ['session' => ['storage_factory_id' => 'session.storage.factory.mock_file']]);
+        $container->extension('framework', [
+            'session' => ['storage_factory_id' => 'session.storage.factory.mock_file'],
+            // Not an array adapter: the kernel resets it between two requests, which would clear the counters.
+            'cache' => ['pools' => ['herse_two_factor_throttling' => ['adapter' => 'cache.adapter.filesystem']]],
+        ]);
+        $container->services()->alias('test.two_factor_throttling.cache', 'herse_two_factor_throttling')->public();
         $container->extension('security', ['access_control' => [
             ['path' => '^/2fa', 'roles' => 'IS_AUTHENTICATED_2FA_IN_PROGRESS'],
             ['path' => '^/private', 'roles' => 'IS_AUTHENTICATED_FULLY'],

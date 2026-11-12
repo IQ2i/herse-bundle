@@ -13,6 +13,7 @@ or when its bundle is not registered in `config/bundles.php`.
 composer require scheb/2fa-bundle scheb/2fa-email           # method: email
 composer require scheb/2fa-bundle scheb/2fa-totp            # method: totp
 composer require scheb/2fa-trusted-device                   # trusted_devices: true
+composer require symfony/rate-limiter                       # throttling, enabled by default
 ```
 
 The email method also needs the packages of the [emails](emails.md) guide. A scheb installed but not enabled on a
@@ -27,6 +28,11 @@ iq2i_herse:
         enabled: true
         method: email          # or totp, required
         trusted_devices: false # a trusted device skips the second factor, requires trusted_devices
+        throttling:            # wrong second factors allowed to a user, enabled by default
+            limit: 5
+            interval: '15 minutes'
+            cache_pool: cache.rate_limiter # must be shared between servers
+            lock_factory: auto             # a service id, or null to disable locking
 ```
 
 ## What the bundle does
@@ -49,6 +55,14 @@ iq2i_herse:
   follow the end of the login. With `trusted_devices.notify_before_second_factor: true`, the user is warned as soon as
   the password is accepted from an unknown device instead. It tells them their password is known to somebody even if
   the second factor then fails, and it warns again at each such attempt.
+
+- **Throttling**: a user gets 5 wrong second factors per 15 minutes on a firewall, whatever the IP they come from;
+  the next attempts are refused like a wrong code, even with the right one, until the window ends. The right code
+  clears the counter, accepting the password again does not. The
+  [login throttling](login-throttling.md) cannot play this role: its limits tied to the identifier are cleared each
+  time the password is accepted, which somebody guessing the code already knows. `IQ2i\HerseBundle\Event\TwoFactorThrottledEvent`
+  is dispatched once when the limit is reached. `throttling: false` removes the protection: only do it when the
+  project brings its own.
 
 `IQ2i\HerseBundle\Event\TwoFactorSucceededEvent` and `TwoFactorFailedEvent` relay the events of scheb, once for each
 second factor passed or refused. They carry the `UserReference` (null when the class is not declared in `users`), the

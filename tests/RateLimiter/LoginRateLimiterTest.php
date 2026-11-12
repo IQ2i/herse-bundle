@@ -25,6 +25,9 @@ use Symfony\Component\RateLimiter\LimiterStateInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
 use Symfony\Component\RateLimiter\Storage\StorageInterface;
+use Symfony\Component\Security\Core\Exception\BadCredentialsException;
+use Symfony\Component\Security\Http\Authenticator\AuthenticatorInterface;
+use Symfony\Component\Security\Http\Event\LoginFailureEvent;
 use Symfony\Component\Security\Http\SecurityRequestAttributes;
 
 final class LoginRateLimiterTest extends TestCase
@@ -93,11 +96,11 @@ final class LoginRateLimiterTest extends TestCase
     {
         $limiter = $this->limiter();
 
-        $limiter->consume($this->request('alice'));
-        $limiter->consume($this->request('alice'));
+        $this->failedAttempt($limiter, $this->request('alice'));
+        $this->failedAttempt($limiter, $this->request('alice'));
         self::assertCount(0, $this->events);
 
-        $limiter->consume($this->request('alice'));
+        $this->failedAttempt($limiter, $this->request('alice'));
 
         self::assertCount(1, $this->events);
         self::assertSame(LoginThrottlingLimit::IdentifierAndIp, $this->events[0]->limit);
@@ -110,8 +113,8 @@ final class LoginRateLimiterTest extends TestCase
     {
         $limiter = $this->limiter(identifierLimit: 2, ipLimit: 2, identifierAndIpLimit: 2);
 
-        $limiter->consume($this->request('alice'));
-        $limiter->consume($this->request('alice'));
+        $this->failedAttempt($limiter, $this->request('alice'));
+        $this->failedAttempt($limiter, $this->request('alice'));
 
         self::assertEqualsCanonicalizing(
             [LoginThrottlingLimit::IdentifierAndIp, LoginThrottlingLimit::Ip, LoginThrottlingLimit::Identifier],
@@ -119,16 +122,66 @@ final class LoginRateLimiterTest extends TestCase
         );
     }
 
+    public function testALimitIsReportedWhenTheNativeListenerConsumesBeforeTheLoginFails(): void
+    {
+        $limiter = $this->limiter(identifierAndIpLimit: 1);
+        $request = $this->request('alice');
+
+        $limiter->consume($request);
+        self::assertCount(0, $this->events, 'The outcome of the login is not known yet.');
+
+        $limiter->onLoginFailure($this->failure($request));
+
+        self::assertCount(1, $this->events);
+    }
+
+    public function testASuccessfulLoginTakingTheLastTokenReportsNothing(): void
+    {
+        $limiter = $this->limiter(identifierAndIpLimit: 1);
+        $request = $this->request('alice');
+
+        $limiter->consume($request);
+        $limiter->reset($request);
+
+        self::assertCount(0, $this->events);
+    }
+
+    public function testALimitIsReportedOnlyOnceForAFailedLogin(): void
+    {
+        $limiter = $this->limiter(identifierAndIpLimit: 1);
+        $request = $this->request('alice');
+
+        $limiter->consume($request);
+        $limiter->onLoginFailure($this->failure($request));
+        $limiter->onLoginFailure($this->failure($request));
+
+        self::assertCount(1, $this->events);
+    }
+
     public function testTheIdentifierLimitIsOptional(): void
     {
         $limiter = $this->limiter(withIdentifierLimit: false);
 
         for ($attempt = 1; $attempt <= 5; ++$attempt) {
-            $limiter->consume($this->request('alice', '203.0.113.'.$attempt));
+            $this->failedAttempt($limiter, $this->request('alice', '203.0.113.'.$attempt));
         }
 
         self::assertCount(0, $this->events);
         self::assertTrue($limiter->peek($this->request('alice', '203.0.113.99'))->isAccepted());
+    }
+
+    public function testAnAttemptWithoutIdentifierOnlyCountsForTheIp(): void
+    {
+        $limiter = $this->limiter(identifierAndIpLimit: 2, identifierLimit: 2);
+
+        for ($attempt = 1; $attempt <= 4; ++$attempt) {
+            $this->failedAttempt($limiter, $this->request('  '));
+        }
+
+        self::assertCount(0, $this->events);
+        self::assertSame(2, $limiter->peek($this->request('  '))->getRemainingTokens(), 'Only the limit of the IP, of 6, was consumed.');
+        $limiter->reset($this->request(''));
+        self::assertSame(2, $limiter->peek($this->request(''))->getRemainingTokens());
     }
 
     public function testResetClearsTheLimitsOfTheIdentifier(): void
@@ -206,6 +259,20 @@ final class LoginRateLimiterTest extends TestCase
             $dispatcher,
             'secret',
         );
+    }
+
+    /**
+     * A failed attempt, as the native listener reports it once the login has failed.
+     */
+    private function failedAttempt(LoginRateLimiter $limiter, Request $request): void
+    {
+        $limiter->onLoginFailure($this->failure($request));
+        $limiter->consume($request);
+    }
+
+    private function failure(Request $request): LoginFailureEvent
+    {
+        return new LoginFailureEvent(new BadCredentialsException(), $this->createStub(AuthenticatorInterface::class), $request, null, 'shop');
     }
 
     private function factory(string $id, int $limit): RateLimiterFactory

@@ -20,6 +20,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\LimiterInterface;
 use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\Security\Http\Event\LoginFailureEvent;
 use Symfony\Component\Security\Http\SecurityRequestAttributes;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
@@ -31,6 +32,9 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  */
 final class LoginRateLimiter implements PeekableRequestRateLimiterInterface
 {
+    private const EXHAUSTED_ATTRIBUTE = '_iq2i_herse_exhausted_limits';
+    private const FAILED_ATTRIBUTE = '_iq2i_herse_login_failed';
+
     /**
      * @param non-empty-string $secret
      */
@@ -48,19 +52,32 @@ final class LoginRateLimiter implements PeekableRequestRateLimiterInterface
     {
         $context = $this->context($request);
         $rateLimits = [];
+        $exhausted = $this->exhausted($request);
 
         foreach ($this->limiters($context) as $name => $limiter) {
             $rateLimit = $limiter->consume(1);
             $rateLimits[] = $rateLimit;
 
-            // The native listener peeks before consuming, so a limit is exhausted by exactly one failed attempt.
+            // The attempt taking the last token is the one exhausting the limit: the next ones are refused before consuming.
             if ($rateLimit->isAccepted() && 0 === $rateLimit->getRemainingTokens()) {
-                $this->eventDispatcher->dispatch(new LoginThrottledEvent(LoginThrottlingLimit::from($name), $context['identifier'], $context['ip'], $context['firewall']));
+                $exhausted[] = new LoginThrottledEvent(LoginThrottlingLimit::from($name), $context['identifier'], $context['ip'], $context['firewall']);
             }
         }
 
+        $request->attributes->set(self::EXHAUSTED_ATTRIBUTE, $exhausted);
+        $this->dispatchExhausted($request);
+
         /* @var non-empty-list<RateLimit> $rateLimits */
         return self::mostRestrictive($rateLimits);
+    }
+
+    /**
+     * @internal
+     */
+    public function onLoginFailure(LoginFailureEvent $event): void
+    {
+        $event->getRequest()->attributes->set(self::FAILED_ATTRIBUTE, true);
+        $this->dispatchExhausted($event->getRequest());
     }
 
     public function peek(Request $request): RateLimit
@@ -83,6 +100,34 @@ final class LoginRateLimiter implements PeekableRequestRateLimiterInterface
         foreach ($limiters as $limiter) {
             $limiter->reset();
         }
+    }
+
+    /**
+     * Depending on its version, the native listener consumes before the credentials are checked or once the login
+     * has failed: a limit is only reported when both happened, so that a successful login never reports one.
+     */
+    private function dispatchExhausted(Request $request): void
+    {
+        if (true !== $request->attributes->get(self::FAILED_ATTRIBUTE)) {
+            return;
+        }
+
+        $exhausted = $this->exhausted($request);
+        $request->attributes->remove(self::EXHAUSTED_ATTRIBUTE);
+
+        foreach ($exhausted as $event) {
+            $this->eventDispatcher->dispatch($event);
+        }
+    }
+
+    /**
+     * @return list<LoginThrottledEvent>
+     */
+    private function exhausted(Request $request): array
+    {
+        $exhausted = $request->attributes->get(self::EXHAUSTED_ATTRIBUTE, []);
+
+        return \is_array($exhausted) ? array_values(array_filter($exhausted, static fn (mixed $event): bool => $event instanceof LoginThrottledEvent)) : [];
     }
 
     /**
@@ -110,11 +155,14 @@ final class LoginRateLimiter implements PeekableRequestRateLimiterInterface
         $firewall = $context['firewall'] ?? '';
         $ip = $context['ip'] ?? '';
 
-        $limiters = [
-            LoginThrottlingLimit::IdentifierAndIp->value => $this->identifierAndIpFactory->create($this->key($firewall, $context['identifier'], $ip)),
-            LoginThrottlingLimit::Ip->value => $this->ipFactory->create($this->key($firewall, $ip)),
-        ];
+        $limiters = [LoginThrottlingLimit::Ip->value => $this->ipFactory->create($this->key($firewall, $ip))];
 
+        // No identifier (the login failed before any user was named): its limits would be one bucket shared by everybody.
+        if ('' === $context['identifier']) {
+            return $limiters;
+        }
+
+        $limiters[LoginThrottlingLimit::IdentifierAndIp->value] = $this->identifierAndIpFactory->create($this->key($firewall, $context['identifier'], $ip));
         if (null !== $this->identifierFactory) {
             $limiters[LoginThrottlingLimit::Identifier->value] = $this->identifierFactory->create($this->key($firewall, $context['identifier']));
         }
@@ -122,10 +170,9 @@ final class LoginRateLimiter implements PeekableRequestRateLimiterInterface
         return $limiters;
     }
 
-    // Hashed so that neither the identifier nor the IP is readable in the cache backend.
     private function key(string ...$parts): string
     {
-        return hash_hmac('sha256', implode('|', $parts), $this->secret);
+        return LimiterKey::hash($this->secret, ...$parts);
     }
 
     /**
