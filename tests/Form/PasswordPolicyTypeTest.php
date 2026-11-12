@@ -57,10 +57,10 @@ final class PasswordPolicyTypeTest extends PasswordPolicyKernelTestCase
 
     public function testTheBrowserIsToldItIsANewPassword(): void
     {
-        $view = $this->submit('', '')->createView();
+        $password = $this->submit('', '')->get('password');
 
         foreach (['first', 'second'] as $field) {
-            self::assertSame(['autocomplete' => 'new-password'], $view['password'][$field]->vars['attr'] ?? null);
+            self::assertSame(['autocomplete' => 'new-password'], $password->get($field)->getConfig()->getOption('attr'));
         }
     }
 

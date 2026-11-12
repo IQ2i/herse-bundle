@@ -17,12 +17,12 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use IQ2i\HerseBundle\Tests\TestApplication\Entity\Account;
 use IQ2i\HerseBundle\Tests\TestApplication\InMemoryLogger;
+use IQ2i\HerseBundle\Tests\TestApplication\MailCollector;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
-use Symfony\Component\Mailer\EventListener\MessageLoggerListener;
 
 /**
  * Boots the test application with an in-memory database holding the tables of every mapped entity.
@@ -34,7 +34,12 @@ abstract class DoctrineKernelTestCase extends HerseKernelTestCase
         parent::setUp();
 
         $entityManager = $this->entityManager();
-        (new SchemaTool($entityManager))->createSchema($entityManager->getMetadataFactory()->getAllMetadata());
+        // Rebuilt as a list: the return type of getAllMetadata() is only one from doctrine/persistence 4.
+        $classes = [];
+        foreach ($entityManager->getMetadataFactory()->getAllMetadata() as $metadata) {
+            $classes[] = $metadata;
+        }
+        (new SchemaTool($entityManager))->createSchema($classes);
     }
 
     protected function entityManager(): EntityManagerInterface
@@ -62,7 +67,7 @@ abstract class DoctrineKernelTestCase extends HerseKernelTestCase
 
     protected function resetMails(): void
     {
-        $this->service(MessageLoggerListener::class, 'mailer.message_logger_listener')->reset();
+        $this->service(MailCollector::class, MailCollector::class)->reset();
     }
 
     /**
@@ -71,7 +76,7 @@ abstract class DoctrineKernelTestCase extends HerseKernelTestCase
     protected function mails(): array
     {
         $mails = [];
-        foreach ($this->service(MessageLoggerListener::class, 'mailer.message_logger_listener')->getEvents()->getMessages() as $message) {
+        foreach ($this->service(MailCollector::class, MailCollector::class)->messages() as $message) {
             self::assertInstanceOf(TemplatedEmail::class, $message);
             $mails[] = $message;
         }

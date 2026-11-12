@@ -101,7 +101,7 @@ final class AuthCodeMailerTest extends TestCase
 
             public function send(RawMessage $message, ?Envelope $envelope = null): void
             {
-                $this->sent[] = $message;
+                $this->sent->append($message);
             }
         };
 

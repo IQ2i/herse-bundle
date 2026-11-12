@@ -6,6 +6,7 @@
 /clover.xml
 /.php-cs-fixer.cache
 /tests/TestApplication/config/reference.php
+/tests/TestApplication/config/schema.json
 /.plans/
 /.twig-cs-fixer.cache
 /tests/SyliusApplication/vendor/

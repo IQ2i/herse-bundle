@@ -92,6 +92,8 @@ abstract class TrustedDevicesKernelTestCase extends DoctrineKernelTestCase
      * What the database holds, read afresh.
      *
      * @return list<TrustedDevice>
+     *
+     * @phpstan-impure
      */
     protected function devices(): array
     {

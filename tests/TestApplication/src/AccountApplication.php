@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle\Tests\TestApplication;
 
 use IQ2i\HerseBundle\Tests\TestApplication\Entity\Account;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Symfony\Component\Mailer\Event\MessageEvent;
 
 /**
  * The application shared by the environments needing Doctrine, Twig, the mailer and the Account entity.
@@ -65,5 +66,6 @@ final class AccountApplication
         $services->set(AccountRepository::class)->autowire()->autoconfigure();
         $services->set(ResetPasswordController::class)->autowire()->public();
         $services->set('test.logger', InMemoryLogger::class)->decorate('logger');
+        $services->set(MailCollector::class)->public()->tag('kernel.event_listener', ['event' => MessageEvent::class, 'method' => 'onMessage', 'priority' => -255]);
     }
 }

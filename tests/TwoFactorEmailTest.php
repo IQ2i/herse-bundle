@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
+use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Event\TwoFactorFailedEvent;
 use IQ2i\HerseBundle\Event\TwoFactorSucceededEvent;
 use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
@@ -96,9 +97,7 @@ final class TwoFactorEmailTest extends TwoFactorKernelTestCase
 
         $this->submitCode($this->emailedCode());
 
-        $devices = $this->devices();
-        self::assertCount(1, $devices);
-        self::assertSame(TrustLevel::Known, $devices[0]->getTrustLevel());
+        self::assertSame([TrustLevel::Known], array_map(static fn (TrustedDevice $device): TrustLevel => $device->getTrustLevel(), $this->devices()));
         $mails = $this->mails();
         self::assertCount(2, $mails);
         self::assertSame('New sign-in to your account', $mails[1]->getSubject());

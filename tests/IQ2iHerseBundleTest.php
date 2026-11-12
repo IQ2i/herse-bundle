@@ -286,6 +286,7 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertSame(LoginRateLimiter::class, $limiter->getClass());
         self::assertTrue($limiter->isPublic());
         self::assertNull($limiter->getArgument(2));
+        self::assertSame([['event' => LoginFailureEvent::class, 'method' => 'onLoginFailure']], $limiter->getTag('kernel.event_listener'));
     }
 
     public function testLoginThrottlingSettingsAreConfigurable(): void
@@ -539,7 +540,7 @@ final class IQ2iHerseBundleTest extends TestCase
     #[DataProvider('provideTheDeviceMappingCases')]
     public function testTheDeviceEntityIsMappedOnlyWhileTheFeatureIsEnabled(array $herse, bool $mapped): void
     {
-        $container = new ContainerBuilder();
+        $container = $this->newContainer();
         $container->registerExtension(new DoctrineExtension());
         $container->prependExtensionConfig('iq2i_herse', $herse);
 
@@ -574,7 +575,7 @@ final class IQ2iHerseBundleTest extends TestCase
 
     public function testTheDeviceEntityIsNotMappedWithoutDoctrine(): void
     {
-        $container = new ContainerBuilder();
+        $container = $this->newContainer();
         $container->prependExtensionConfig('iq2i_herse', ['trusted_devices' => true]);
 
         $extension = (new IQ2iHerseBundle())->getContainerExtension();
