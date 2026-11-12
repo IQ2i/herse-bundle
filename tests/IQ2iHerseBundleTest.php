@@ -16,6 +16,8 @@ namespace IQ2i\HerseBundle\Tests;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
+use IQ2i\HerseBundle\PasswordChange\PasswordChangeListener;
+use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
 use IQ2i\HerseBundle\Tests\TestApplication\User;
@@ -32,6 +34,9 @@ use Symfony\Component\Form\Form;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\CacheStorage;
+use Symfony\Component\Security\Http\Event\CheckPassportEvent;
+use Symfony\Component\Security\Http\Event\LoginFailureEvent;
+use Symfony\Component\Security\Http\Event\LoginSuccessEvent;
 
 final class IQ2iHerseBundleTest extends TestCase
 {
@@ -48,7 +53,7 @@ final class IQ2iHerseBundleTest extends TestCase
             $container->getParameter('iq2i_herse.features'),
         );
         self::assertSame(
-            [User::class => ['type' => 'shop', 'email' => 'email', 'id' => 'id']],
+            [User::class => ['type' => 'shop', 'email' => 'email', 'id' => 'id', 'password' => 'password', 'locale' => null]],
             $container->getParameter('iq2i_herse.users'),
         );
 
@@ -74,7 +79,7 @@ final class IQ2iHerseBundleTest extends TestCase
     {
         foreach (IQ2iHerseBundle::FEATURES as $feature) {
             /** @var array<string, bool> $features */
-            $features = $this->load([$feature => true])->getParameter('iq2i_herse.features');
+            $features = $this->load([$feature => true, 'mailer' => ['sender' => 'no-reply@example.com']])->getParameter('iq2i_herse.features');
 
             self::assertSame([$feature], array_keys(array_filter($features)));
         }
@@ -337,6 +342,84 @@ final class IQ2iHerseBundleTest extends TestCase
         yield 'unparsable interval' => [['identifier_and_ip' => ['interval' => 'soon']], '"soon" is not a valid interval'];
         yield 'empty interval' => [['identifier' => ['interval' => '']], 'iq2i_herse.login_throttling.identifier.interval'];
         yield 'empty cache pool' => [['cache_pool' => ''], 'iq2i_herse.login_throttling.cache_pool'];
+    }
+
+    public function testPasswordChangeNotificationDeclaresItsServicesWithTheDefaultSettings(): void
+    {
+        $container = $this->load(['password_change_notification' => true, 'mailer' => ['sender' => 'no-reply@example.com']]);
+
+        $listener = $container->getDefinition('iq2i_herse.password_change.listener');
+        self::assertSame(PasswordChangeListener::class, $listener->getClass());
+        self::assertSame([true, true], \array_slice($listener->getArguments(), -2));
+        self::assertSame(['onFlush', 'postFlush', 'onClear'], array_column($listener->getTag('doctrine.event_listener'), 'event'));
+
+        $window = $container->getDefinition('iq2i_herse.password_change.authentication_window');
+        self::assertSame(
+            [CheckPassportEvent::class, LoginSuccessEvent::class, LoginFailureEvent::class],
+            array_column($window->getTag('kernel.event_listener'), 'event'),
+        );
+        self::assertCount(1, $window->getTag('kernel.reset'));
+
+        self::assertTrue($container->getDefinition(PasswordChangeNotification::class)->isPublic());
+        self::assertSame(['no-reply@example.com', null, null], \array_slice($container->getDefinition('iq2i_herse.mailer')->getArguments(), 3));
+    }
+
+    public function testPasswordChangeNotificationSettingsAreConfigurable(): void
+    {
+        $container = $this->load([
+            'password_change_notification' => ['notify_on_other_user' => false, 'notify_on_console' => false],
+            'mailer' => ['sender' => 'no-reply@example.com', 'sender_name' => 'Example', 'app_name' => 'Shop'],
+        ]);
+
+        self::assertSame([false, false], \array_slice($container->getDefinition('iq2i_herse.password_change.listener')->getArguments(), -2));
+        self::assertSame(['no-reply@example.com', 'Example', 'Shop'], \array_slice($container->getDefinition('iq2i_herse.mailer')->getArguments(), 3));
+    }
+
+    public function testTheHashedPasswordPropertyCanBeConfiguredPerUserClass(): void
+    {
+        $container = $this->load([
+            'password_change_notification' => true,
+            'mailer' => ['sender' => 'no-reply@example.com'],
+            'users' => [User::class => ['type' => 'shop', 'email' => 'email', 'password' => 'plainPassword', 'locale' => 'locale']],
+        ]);
+
+        /** @var array<class-string, array{password: string, locale: string|null}> $users */
+        $users = $container->getDefinition('iq2i_herse.user_resolver')->getArgument(0);
+        self::assertSame(['plainPassword', 'locale'], [$users[User::class]['password'], $users[User::class]['locale']]);
+    }
+
+    public function testPasswordChangeNotificationRequiresASender(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.mailer.sender is required');
+
+        $this->load(['password_change_notification' => true]);
+    }
+
+    public function testPasswordChangeNotificationRequiresThePasswordPropertyOfEveryUserClass(): void
+    {
+        $this->expectExceptionMessage('has no "missing" property');
+
+        $this->load([
+            'password_change_notification' => true,
+            'mailer' => ['sender' => 'no-reply@example.com'],
+            'users' => [User::class => ['type' => 'shop', 'email' => 'email', 'password' => 'missing']],
+        ]);
+    }
+
+    public function testAnEmptySenderIsRejected(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.mailer.sender');
+
+        $this->load(['mailer' => ['sender' => '']]);
+    }
+
+    public function testAMissingPackageIsReportedWithTheComposerCommand(): void
+    {
+        $assert = new \ReflectionMethod(IQ2iHerseBundle::class, 'assertEmailRequirements');
+
+        $this->expectExceptionMessage('iq2i_herse.password_change_notification requires acme/missing, acme/other. Try running "composer require acme/missing acme/other".');
+
+        $assert->invoke(new IQ2iHerseBundle(), 'password_change_notification', ['acme/missing' => 'Acme\\Missing', 'acme/other' => 'Acme\\Other']);
     }
 
     private function currentExceptionHandler(): ?callable

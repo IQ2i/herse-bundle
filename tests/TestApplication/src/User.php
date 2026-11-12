@@ -21,6 +21,7 @@ final class User implements UserInterface
         public int $id = 1,
         public string $email = 'user@example.com',
         public ?string $plainPassword = null,
+        public ?string $password = null,
     ) {
     }
 

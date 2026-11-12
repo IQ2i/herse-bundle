@@ -31,6 +31,8 @@ iq2i_herse:
             type: admin          # unique across the declared classes
             email: email         # property path of the recipient address
             id: id               # property path of the identifier, "id" by default
+            password: password   # Doctrine field of the hashed password, "password" by default
+            locale: locale       # property path of the user locale, optional
         App\Entity\ShopUser:
             type: shop
             email: customer.email
@@ -117,6 +119,84 @@ security:
 
 `IQ2i\HerseBundle\Event\LoginThrottledEvent` is dispatched when a failed attempt exhausts a limit (once per
 window and limit), with the limit (`LoginThrottlingLimit`), the normalized identifier, the IP and the firewall.
+
+## Password change notification
+
+Requires `doctrine/orm`, `doctrine/doctrine-bundle` and the packages of the [emails](#emails). The owner
+of an account receives an email when the hashed password of a declared user class changes. The change is
+detected by Doctrine, so profile pages, reset links, administrators and console commands are all covered
+without any call in your code. The email is sent once the flush has succeeded, never before.
+
+```yaml
+iq2i_herse:
+    mailer:
+        sender: no-reply@example.com
+    password_change_notification:
+        enabled: true
+        notify_on_other_user: true   # default: another authenticated user (an administrator) changed it
+        notify_on_console: true      # default: changed outside of a web request (console command, worker)
+```
+
+The email gives the date and time of the change and tells the user what to do if they did not make it.
+It contains no reset link, on purpose.
+
+No email is sent for:
+
+| Case                                      | Rule                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Account creation                          | Nothing is sent on insertion.                                                              |
+| First password of an account              | Nothing is sent when the previous value is empty.                                          |
+| Password removed                          | Nothing is sent when the new value is empty.                                               |
+| Automatic rehash at login                 | Changes made between the credentials check and the end of the login are not user changes.  |
+| Fixtures and imports                      | Switch the notification off around the processing, see below.                              |
+
+A password reset followed by an automatic login is still notified: the password is written before the
+authentication starts.
+
+```php
+use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
+
+$notification->withoutNotification(function () use ($importer): void {
+    $importer->import();
+});
+// or $notification->disable() then $notification->enable(), which can be nested
+```
+
+`IQ2i\HerseBundle\Event\PasswordChangedEvent` is dispatched before the email is sent. It carries the
+`UserReference`, the user object, the date of the change, the context and the email itself. A listener can
+call `cancel()` to prevent the sending, or `setEmail()` to replace the message. The context
+(`PasswordChangeContext`) is `Self` for a web request made by the owner or by somebody with no
+authenticated user (a reset link), `OtherUser` for a web request made by another authenticated user, and
+`Console` when there is no web request.
+
+The hashed password must be a field mapped by Doctrine, otherwise a `LogicException` is thrown on the
+first update of such a user.
+
+## Emails
+
+Every email of the bundle goes through one internal sender based on Symfony Mailer, and requires
+`symfony/mailer`, `symfony/twig-bundle` and `symfony/translation` as soon as a feature sending emails is
+enabled (the container compilation fails with the exact `composer require` command otherwise). Mailer
+must be configured in the framework (`framework.mailer`).
+
+```yaml
+iq2i_herse:
+    mailer:
+        sender: no-reply@example.com   # required
+        sender_name: Example           # optional
+        app_name: Example shop         # optional, available as "app_name" in the templates
+```
+
+- **Templates**: one Twig template per email, extending `@IQ2iHerse/email/layout.html.twig`. Override a
+  template, or only the layout to apply your own design to every email, in
+  `templates/bundles/IQ2iHerseBundle/email/`. The default rendering is deliberately neutral.
+- **Translations**: English and French, in the `iq2i_herse` domain. The email uses the locale returned by
+  the `locale` property path of the user class when it is declared, the default locale otherwise.
+- **Recipient**: read from the `email` property path of the user class. When there is none, or when it is
+  not a valid address, nothing is sent and a warning is logged.
+- **Asynchronous sending**: nothing to configure. When Messenger routes the emails to a transport in your
+  project, the emails of the bundle follow.
+- **Failures**: an error while sending never fails a login or a password change, it is logged.
 
 ## Development
 

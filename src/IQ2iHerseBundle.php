@@ -13,12 +13,20 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle;
 
+use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
+use Doctrine\ORM\EntityManagerInterface;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
+use IQ2i\HerseBundle\Mailer\Mailer;
+use IQ2i\HerseBundle\PasswordChange\AuthenticationWindow;
+use IQ2i\HerseBundle\PasswordChange\PasswordChangeListener;
+use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
+use IQ2i\HerseBundle\User\UserResolver;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
+use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -30,9 +38,15 @@ use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\CacheStorage;
+use Symfony\Component\Security\Http\Event\CheckPassportEvent;
+use Symfony\Component\Security\Http\Event\LoginFailureEvent;
+use Symfony\Component\Security\Http\Event\LoginSuccessEvent;
+use Symfony\Component\Translation\Translator;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class IQ2iHerseBundle extends AbstractBundle
 {
@@ -77,6 +91,16 @@ final class IQ2iHerseBundle extends AbstractBundle
                             ->defaultValue('id')
                             ->cannotBeEmpty()
                         ->end()
+                        ->scalarNode('password')
+                            ->info('Doctrine field holding the hashed password. Used by password_change_notification.')
+                            ->defaultValue('password')
+                            ->cannotBeEmpty()
+                        ->end()
+                        ->scalarNode('locale')
+                            ->info('Property path of the user locale, to translate the emails. The default locale of the application is used when it is not set.')
+                            ->defaultNull()
+                            ->cannotBeEmpty()
+                        ->end()
                         ->arrayNode('plain_password')
                             ->info('Plain password property the password policy is applied to, as a property name or { property, groups }. Requires password_policy.')
                             ->beforeNormalization()
@@ -109,6 +133,22 @@ final class IQ2iHerseBundle extends AbstractBundle
             ->end()
         ;
 
+        $children
+            ->arrayNode('mailer')
+                ->info('Shared by every email of the bundle.')
+                ->addDefaultsIfNotSet()
+                ->children()
+                    ->scalarNode('sender')
+                        ->info('Sender email address. Required as soon as a feature sending emails is enabled.')
+                        ->defaultNull()
+                        ->cannotBeEmpty()
+                    ->end()
+                    ->scalarNode('sender_name')->info('Display name of the sender.')->defaultNull()->cannotBeEmpty()->end()
+                    ->scalarNode('app_name')->info('Name of the application, available as "app_name" in the email templates.')->defaultNull()->cannotBeEmpty()->end()
+                ->end()
+            ->end()
+        ;
+
         foreach (self::FEATURES as $feature) {
             $node = $children->arrayNode($feature)->canBeEnabled();
 
@@ -118,6 +158,10 @@ final class IQ2iHerseBundle extends AbstractBundle
 
             if ('login_throttling' === $feature) {
                 $this->configureLoginThrottling($node);
+            }
+
+            if ('password_change_notification' === $feature) {
+                $this->configurePasswordChangeNotification($node);
             }
 
             $node->end();
@@ -133,11 +177,12 @@ final class IQ2iHerseBundle extends AbstractBundle
 
     /**
      * @param array{
-     *     users: array<class-string, array{type: string, email: string, id: string, plain_password?: array{property?: string|null, groups?: list<string>}}>,
+     *     users: array<class-string, array{type: string, email: string, id: string, password: string, locale: string|null, plain_password?: array{property?: string|null, groups?: list<string>}}>,
+     *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
      *     trusted_devices: array{enabled: bool},
-     *     password_change_notification: array{enabled: bool},
+     *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
      *     two_factor: array{enabled: bool},
      * } $config
      */
@@ -162,6 +207,120 @@ final class IQ2iHerseBundle extends AbstractBundle
 
         if ($config['login_throttling']['enabled']) {
             $this->loadLoginThrottling($config['login_throttling'], $container);
+        }
+
+        if ($config['password_change_notification']['enabled']) {
+            $this->loadPasswordChangeNotification($config, $container);
+        }
+    }
+
+    private function configurePasswordChangeNotification(ArrayNodeDefinition $node): void
+    {
+        $node
+            ->children()
+                ->booleanNode('notify_on_other_user')
+                    ->info('Warn the account owner when another authenticated user (an administrator) changes the password.')
+                    ->defaultTrue()
+                ->end()
+                ->booleanNode('notify_on_console')
+                    ->info('Warn the account owner when the password is changed outside of a web request (console command, worker).')
+                    ->defaultTrue()
+                ->end()
+            ->end()
+        ;
+    }
+
+    /**
+     * @param array{users: array<class-string, array{password: string}>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, password_change_notification: array{notify_on_other_user: bool, notify_on_console: bool}} $config
+     */
+    private function loadPasswordChangeNotification(array $config, ContainerConfigurator $container): void
+    {
+        $this->assertEmailRequirements('password_change_notification', [
+            'doctrine/orm' => EntityManagerInterface::class,
+            'doctrine/doctrine-bundle' => DoctrineBundle::class,
+        ]);
+
+        foreach ($config['users'] as $class => $user) {
+            if (!property_exists($class, $user['password'])) {
+                throw new InvalidConfigurationException(\sprintf('iq2i_herse.users: class "%s" has no "%s" property.', $class, $user['password']));
+            }
+        }
+
+        $notification = $config['password_change_notification'];
+        $services = $container->services();
+
+        $services->set('iq2i_herse.password_change.authentication_window', AuthenticationWindow::class)
+            ->tag('kernel.event_listener', ['event' => CheckPassportEvent::class, 'method' => 'open', 'priority' => 2048])
+            ->tag('kernel.event_listener', ['event' => LoginSuccessEvent::class, 'method' => 'close', 'priority' => -2048])
+            ->tag('kernel.event_listener', ['event' => LoginFailureEvent::class, 'method' => 'close', 'priority' => -2048])
+            ->tag('kernel.reset', ['method' => 'reset'])
+        ;
+
+        // Public: projects switch the notification off around fixtures or imports.
+        $services->set(PasswordChangeNotification::class)->public();
+
+        $services->set('iq2i_herse.password_change.listener', PasswordChangeListener::class)
+            ->args([
+                new Reference('iq2i_herse.user_resolver'),
+                new Reference('iq2i_herse.password_change.authentication_window'),
+                new Reference(PasswordChangeNotification::class),
+                new Reference('iq2i_herse.mailer'),
+                new Reference('event_dispatcher'),
+                new Reference('request_stack'),
+                new Reference('security.token_storage'),
+                new Reference('logger'),
+                $notification['notify_on_other_user'],
+                $notification['notify_on_console'],
+            ])
+            ->tag('doctrine.event_listener', ['event' => 'onFlush', 'lazy' => true])
+            ->tag('doctrine.event_listener', ['event' => 'postFlush', 'lazy' => true])
+            ->tag('doctrine.event_listener', ['event' => 'onClear', 'lazy' => true])
+        ;
+
+        $this->loadMailer($config, $container);
+    }
+
+    /**
+     * The services shared by the features sending emails.
+     *
+     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}} $config
+     */
+    private function loadMailer(array $config, ContainerConfigurator $container): void
+    {
+        if (null === $config['mailer']['sender']) {
+            throw new InvalidConfigurationException('iq2i_herse.mailer.sender is required when a feature sending emails is enabled.');
+        }
+
+        $services = $container->services();
+        $services->set('iq2i_herse.user_resolver', UserResolver::class)->args([$config['users'], new Reference('property_accessor')]);
+        $services->set('iq2i_herse.mailer', Mailer::class)->args([
+            new Reference(MailerInterface::class),
+            new Reference(TranslatorInterface::class),
+            new Reference('logger'),
+            $config['mailer']['sender'],
+            $config['mailer']['sender_name'],
+            $config['mailer']['app_name'],
+        ]);
+    }
+
+    /**
+     * @param array<string, class-string> $extraPackages package => class, checked with the packages every email needs
+     */
+    private function assertEmailRequirements(string $feature, array $extraPackages): void
+    {
+        $missing = [];
+        foreach ([
+            'symfony/mailer' => MailerInterface::class,
+            'symfony/twig-bundle' => TwigBundle::class,
+            'symfony/translation' => Translator::class,
+        ] + $extraPackages as $package => $class) {
+            if (!ContainerBuilder::willBeAvailable($package, $class, ['iq2i/herse-bundle'])) {
+                $missing[] = $package;
+            }
+        }
+
+        if ([] !== $missing) {
+            throw new InvalidConfigurationException(\sprintf('iq2i_herse.%s requires %s. Try running "composer require %s".', $feature, implode(', ', $missing), implode(' ', $missing)));
         }
     }
 

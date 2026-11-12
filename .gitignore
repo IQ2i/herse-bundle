@@ -7,3 +7,4 @@
 /.php-cs-fixer.cache
 /tests/TestApplication/config/reference.php
 /.plans/
+/.twig-cs-fixer.cache

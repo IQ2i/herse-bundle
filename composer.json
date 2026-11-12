@@ -22,6 +22,8 @@
     "symfony/validator": "^6.4|^7.0|^8.0"
   },
   "require-dev": {
+    "doctrine/doctrine-bundle": "^2.12|^3.0",
+    "doctrine/orm": "^2.19|^3.0",
     "friendsofphp/php-cs-fixer": "^3.52",
     "phpstan/phpstan": "^2.1",
     "phpstan/phpstan-symfony": "^2.0",
@@ -30,12 +32,19 @@
     "symfony/form": "^6.4|^7.0|^8.0",
     "symfony/framework-bundle": "^6.4|^7.0|^8.0",
     "symfony/http-client": "^6.4|^7.0|^8.0",
+    "symfony/mailer": "^6.4|^7.0|^8.0",
     "symfony/phpunit-bridge": "^7.4|^8.0",
     "symfony/rate-limiter": "^6.4|^7.0|^8.0",
     "symfony/translation": "^6.4|^7.0|^8.0",
-    "symfony/yaml": "^6.4|^7.0|^8.0"
+    "symfony/twig-bundle": "^6.4|^7.0|^8.0",
+    "symfony/yaml": "^6.4|^7.0|^8.0",
+    "vincentlanglet/twig-cs-fixer": "^4.1"
   },
   "suggest": {
+    "doctrine/doctrine-bundle": "To detect the password changes (password_change_notification)",
+    "doctrine/orm": "To detect the password changes (password_change_notification)",
+    "symfony/mailer": "To send the security emails",
+    "symfony/twig-bundle": "To render the security emails",
     "symfony/form": "To use the PasswordPolicyType form type",
     "symfony/http-client": "To reject compromised passwords (password_policy.check_compromised)",
     "symfony/rate-limiter": "To limit the login attempts (login_throttling)",

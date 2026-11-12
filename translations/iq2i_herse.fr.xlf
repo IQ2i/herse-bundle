@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+    <file source-language="en" target-language="fr" datatype="plaintext" original="file.ext">
+        <body>
+            <trans-unit id="password_changed.subject">
+                <source>Your password has been changed</source>
+                <target>Votre mot de passe a été modifié</target>
+            </trans-unit>
+            <trans-unit id="password_changed.intro">
+                <source>The password of your account has just been changed.</source>
+                <target>Le mot de passe de votre compte vient d'être modifié.</target>
+            </trans-unit>
+            <trans-unit id="password_changed.date">
+                <source>Date and time of the change: %date%.</source>
+                <target>Date et heure de la modification : %date%.</target>
+            </trans-unit>
+            <trans-unit id="password_changed.warning">
+                <source>If you did not make this change, contact us as soon as possible and secure your account.</source>
+                <target>Si vous n'êtes pas à l'origine de cette modification, contactez-nous au plus vite et sécurisez votre compte.</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

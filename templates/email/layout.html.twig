@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="{{ locale|default('en') }}">
+    <head>
+        <meta charset="utf-8">
+        <title>{% block title %}{{ email.subject }}{% endblock %}</title>
+    </head>
+    <body>
+        {% block content %}{% endblock %}
+        {% block footer %}
+            {% if app_name %}
+                <p>{{ app_name }}</p>
+            {% endif %}
+        {% endblock %}
+    </body>
+</html>

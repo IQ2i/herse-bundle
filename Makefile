@@ -35,9 +35,11 @@ ci: static test
 static: ## Run static analysis tools
 	@$(PHP) -d memory_limit=-1 vendor/bin/phpstan analyse
 	@$(PHP) -d memory_limit=-1 vendor/bin/php-cs-fixer fix --dry-run --diff
+	@$(PHP) vendor/bin/twig-cs-fixer lint templates
 
 cs-fix: ## Apply the coding standard fixes
 	@$(PHP) -d memory_limit=-1 vendor/bin/php-cs-fixer fix
+	@$(PHP) vendor/bin/twig-cs-fixer lint templates --fix
 
 test: ## Run tests
 	@$(PHP) -d memory_limit=-1 vendor/bin/phpunit
