@@ -16,6 +16,11 @@ namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 return static function (ContainerConfigurator $container): void {
     $container->extension('security', [
         'providers' => ['users' => ['memory' => ['users' => []]]],
-        'firewalls' => ['main' => ['lazy' => true, 'provider' => 'users']],
+        // Every firewall of the test environments is declared here: the security extension refuses firewalls added by another file.
+        'firewalls' => [
+            'admin' => ['pattern' => '^/admin', 'lazy' => true, 'provider' => 'users'],
+            'public' => ['pattern' => '^/public', 'lazy' => true, 'provider' => 'users'],
+            'main' => ['lazy' => true, 'provider' => 'users'],
+        ],
     ]);
 };

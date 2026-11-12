@@ -1,0 +1,13 @@
+{% extends '@IQ2iHerse/email/layout.html.twig' %}
+
+{% block content %}
+    <p>{{ 'Your account has just been accessed from a device we did not know.'|trans({}, 'iq2i_herse') }}</p>
+    <ul>
+        <li>{{ 'Device: %device%'|trans({'%device%': device ?? 'Unknown device'|trans({}, 'iq2i_herse')}, 'iq2i_herse') }}</li>
+        {% if ip %}
+            <li>{{ 'IP address: %ip%'|trans({'%ip%': ip}, 'iq2i_herse') }}</li>
+        {% endif %}
+        <li>{{ 'Date and time: %date%'|trans({'%date%': signed_in_at|date('Y-m-d H:i T')}, 'iq2i_herse') }}</li>
+    </ul>
+    <p>{{ 'If this was you, nothing more to do. Otherwise, change your password and revoke this device as soon as possible.'|trans({}, 'iq2i_herse') }}</p>
+{% endblock %}

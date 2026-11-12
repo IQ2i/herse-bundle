@@ -18,6 +18,34 @@
                 <source>If you did not make this change, contact us as soon as possible and secure your account.</source>
                 <target>Si vous n'êtes pas à l'origine de cette modification, contactez-nous au plus vite et sécurisez votre compte.</target>
             </trans-unit>
+            <trans-unit id="new_device.subject">
+                <source>New sign-in to your account</source>
+                <target>Nouvelle connexion à votre compte</target>
+            </trans-unit>
+            <trans-unit id="new_device.intro">
+                <source>Your account has just been accessed from a device we did not know.</source>
+                <target>Votre compte vient d'être utilisé depuis un appareil que nous ne connaissions pas.</target>
+            </trans-unit>
+            <trans-unit id="new_device.device">
+                <source>Device: %device%</source>
+                <target>Appareil : %device%</target>
+            </trans-unit>
+            <trans-unit id="new_device.unknown">
+                <source>Unknown device</source>
+                <target>Appareil inconnu</target>
+            </trans-unit>
+            <trans-unit id="new_device.ip">
+                <source>IP address: %ip%</source>
+                <target>Adresse IP : %ip%</target>
+            </trans-unit>
+            <trans-unit id="new_device.date">
+                <source>Date and time: %date%</source>
+                <target>Date et heure : %date%</target>
+            </trans-unit>
+            <trans-unit id="new_device.warning">
+                <source>If this was you, nothing more to do. Otherwise, change your password and revoke this device as soon as possible.</source>
+                <target>S'il s'agit de vous, rien d'autre à faire. Sinon, changez votre mot de passe et révoquez cet appareil au plus vite.</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

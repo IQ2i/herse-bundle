@@ -19,6 +19,7 @@ use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\ORM\Event\PostFlushEventArgs;
 use IQ2i\HerseBundle\Event\PasswordChangedEvent;
 use IQ2i\HerseBundle\Mailer\Mailer;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\User\UserReference;
 use IQ2i\HerseBundle\User\UserResolver;
 use Psr\Log\LoggerInterface;
@@ -55,6 +56,7 @@ final class PasswordChangeListener
         private readonly LoggerInterface $logger,
         private readonly bool $notifyOnOtherUser,
         private readonly bool $notifyOnConsole,
+        private readonly ?TrustedDevices $trustedDevices = null,
     ) {
     }
 
@@ -102,7 +104,9 @@ final class PasswordChangeListener
 
         foreach ($pending as $change) {
             try {
-                $this->notify($change['user'], $change['reference'], $change['changedAt']);
+                $context = $this->context($change['reference']);
+                $this->revokeDevices($change['user'], $context);
+                $this->notify($change['user'], $change['reference'], $change['changedAt'], $context);
             } catch (\Throwable $exception) {
                 $this->logger->error('The password change notification failed.', ['exception' => $exception]);
             }
@@ -114,9 +118,24 @@ final class PasswordChangeListener
         $this->pending = [];
     }
 
-    private function notify(object $user, UserReference $reference, \DateTimeImmutable $changedAt): void
+    /**
+     * The devices lose their trust whatever the notification settings are. The owner keeps the browser they are using.
+     */
+    private function revokeDevices(object $user, PasswordChangeContext $context): void
     {
-        $context = $this->context($reference);
+        if (null === $this->trustedDevices) {
+            return;
+        }
+
+        try {
+            $this->trustedDevices->revokeAll($user, PasswordChangeContext::Self === $context);
+        } catch (\Throwable $exception) {
+            $this->logger->error('The trusted devices could not be revoked after the password change.', ['exception' => $exception]);
+        }
+    }
+
+    private function notify(object $user, UserReference $reference, \DateTimeImmutable $changedAt, PasswordChangeContext $context): void
+    {
         if (PasswordChangeContext::OtherUser === $context && !$this->notifyOnOtherUser) {
             return;
         }

@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Doctrine\ORM\EntityManagerInterface;
+use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\Mailer\Mailer;
@@ -22,6 +23,11 @@ use IQ2i\HerseBundle\PasswordChange\AuthenticationWindow;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeListener;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
+use IQ2i\HerseBundle\TrustedDevice\DeviceCookies;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceListener;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceRepository;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
+use IQ2i\HerseBundle\TrustedDevice\UserAgentParser;
 use IQ2i\HerseBundle\User\UserResolver;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
@@ -30,6 +36,7 @@ use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -37,6 +44,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
@@ -164,6 +172,10 @@ final class IQ2iHerseBundle extends AbstractBundle
                 $this->configurePasswordChangeNotification($node);
             }
 
+            if ('trusted_devices' === $feature) {
+                $this->configureTrustedDevices($node);
+            }
+
             $node->end();
         }
     }
@@ -181,7 +193,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
-     *     trusted_devices: array{enabled: bool},
+     *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
      *     two_factor: array{enabled: bool},
      * } $config
@@ -212,6 +224,162 @@ final class IQ2iHerseBundle extends AbstractBundle
         if ($config['password_change_notification']['enabled']) {
             $this->loadPasswordChangeNotification($config, $container);
         }
+
+        if ($config['trusted_devices']['enabled']) {
+            $this->loadTrustedDevices($config, $container);
+        }
+    }
+
+    /**
+     * Maps the device entity of the bundle, without a line in the Doctrine config of the project.
+     */
+    public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void
+    {
+        if (!$builder->hasExtension('doctrine') || !$this->isTrustedDevicesEnabled($builder->getExtensionConfig($this->extensionAlias))) {
+            return;
+        }
+
+        $builder->prependExtensionConfig('doctrine', ['orm' => ['mappings' => ['IQ2iHerse' => [
+            'type' => 'attribute',
+            'is_bundle' => false,
+            'dir' => __DIR__.'/Entity',
+            'prefix' => 'IQ2i\\HerseBundle\\Entity',
+        ]]]]);
+    }
+
+    /**
+     * The raw configurations are not processed yet: the last one setting the feature wins, as when they are merged.
+     *
+     * @param array<array<string, mixed>> $configs
+     */
+    private function isTrustedDevicesEnabled(array $configs): bool
+    {
+        $enabled = false;
+        foreach ($configs as $config) {
+            if (!\array_key_exists('trusted_devices', $config)) {
+                continue;
+            }
+
+            $feature = $config['trusted_devices'];
+            $enabled = \is_array($feature) ? (bool) ($feature['enabled'] ?? true) : (null === $feature || (bool) $feature);
+        }
+
+        return $enabled;
+    }
+
+    private function configureTrustedDevices(ArrayNodeDefinition $node): void
+    {
+        $children = $node->children();
+
+        $firewall = $children->arrayNode('firewalls')
+            ->info('The firewalls whose logins register a device, by firewall name.')
+            ->useAttributeAsKey('name')
+            ->normalizeKeys(false)
+            ->arrayPrototype()
+            ->treatNullLike([])
+            ->addDefaultsIfNotSet()
+        ;
+        $firewall->children()
+            ->scalarNode('cookie_name')
+                ->info('Name of the device cookie, "herse_device_<firewall>" by default.')
+                ->defaultNull()
+                ->cannotBeEmpty()
+                ->validate()
+                    ->ifTrue(static fn (string $name): bool => 1 !== preg_match('/^[A-Za-z0-9_.-]+$/', $name))
+                    ->thenInvalid('%s is not a valid cookie name.')
+                ->end()
+            ->end()
+            ->scalarNode('lifetime')
+                ->info('Inactivity after which the device is forgotten, as a relative date format (e.g. "30 days").')
+                ->defaultValue('30 days')
+                ->cannotBeEmpty()
+                ->validate()
+                    ->ifTrue(static fn (string $value): bool => !self::isValidInterval($value))
+                    ->thenInvalid('%s is not a valid interval.')
+                ->end()
+            ->end()
+        ;
+
+        $children
+            ->booleanNode('store_ip')
+                ->info('Keep the last IP address of the device, for display. It is personal data: disable it to store none.')
+                ->defaultTrue()
+            ->end()
+            ->booleanNode('notify_first_device')
+                ->info('Warn the user, too, when the device is the first one registered for them (e.g. the first login after the installation).')
+                ->defaultTrue()
+            ->end()
+            ->booleanNode('revoke_on_password_change')
+                ->info('Revoke the devices of a user whose password changes, but the current one when the owner changes it. Requires password_change_notification.')
+                ->defaultFalse()
+            ->end()
+        ;
+    }
+
+    /**
+     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
+     */
+    private function loadTrustedDevices(array $config, ContainerConfigurator $container): void
+    {
+        $devices = $config['trusted_devices'];
+        if ([] === $devices['firewalls']) {
+            throw new InvalidConfigurationException('iq2i_herse.trusted_devices.firewalls requires at least one firewall.');
+        }
+        if ($devices['revoke_on_password_change'] && !$config['password_change_notification']['enabled']) {
+            throw new InvalidConfigurationException('iq2i_herse.trusted_devices.revoke_on_password_change requires iq2i_herse.password_change_notification to be enabled.');
+        }
+
+        $this->assertEmailRequirements('trusted_devices', [
+            'doctrine/orm' => EntityManagerInterface::class,
+            'doctrine/doctrine-bundle' => DoctrineBundle::class,
+        ]);
+
+        $firewalls = [];
+        foreach ($devices['firewalls'] as $name => $firewall) {
+            $firewalls[$name] = ['cookie_name' => $firewall['cookie_name'] ?? 'herse_device_'.$name, 'lifetime' => $firewall['lifetime']];
+        }
+
+        $services = $container->services();
+
+        $services->set('iq2i_herse.trusted_devices.cookies', DeviceCookies::class)
+            ->args([$firewalls])
+            ->tag('kernel.event_listener', ['event' => KernelEvents::RESPONSE, 'method' => 'onKernelResponse'])
+            ->tag('kernel.reset', ['method' => 'reset'])
+        ;
+        $services->set('iq2i_herse.trusted_devices.repository', TrustedDeviceRepository::class)->args([new Reference('doctrine.orm.entity_manager')]);
+
+        $services->set('iq2i_herse.trusted_devices.listener', TrustedDeviceListener::class)
+            ->args([
+                new Reference('iq2i_herse.user_resolver'),
+                new Reference('iq2i_herse.trusted_devices.repository'),
+                new Reference('iq2i_herse.trusted_devices.cookies'),
+                new Reference('iq2i_herse.trusted_devices.user_agent_parser'),
+                new Reference('iq2i_herse.mailer'),
+                new Reference('event_dispatcher'),
+                new Reference('logger'),
+                $devices['store_ip'],
+                $devices['notify_first_device'],
+            ])
+            ->tag('kernel.event_listener', ['event' => LoginSuccessEvent::class, 'method' => 'onLoginSuccess'])
+        ;
+        $services->set('iq2i_herse.trusted_devices.user_agent_parser', UserAgentParser::class);
+
+        // Public: the projects list and revoke the devices through it.
+        $services->set(TrustedDevices::class)
+            ->args([
+                new Reference('iq2i_herse.user_resolver'),
+                new Reference('iq2i_herse.trusted_devices.repository'),
+                new Reference('iq2i_herse.trusted_devices.cookies'),
+                new Reference('request_stack'),
+            ])
+            ->public()
+        ;
+
+        if (class_exists(Command::class)) {
+            $services->set(PurgeTrustedDevicesCommand::class)->args([new Reference('iq2i_herse.trusted_devices.repository')])->tag('console.command');
+        }
+
+        $this->loadMailer($config, $container);
     }
 
     private function configurePasswordChangeNotification(ArrayNodeDefinition $node): void
@@ -231,7 +399,7 @@ final class IQ2iHerseBundle extends AbstractBundle
     }
 
     /**
-     * @param array{users: array<class-string, array{password: string}>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, password_change_notification: array{notify_on_other_user: bool, notify_on_console: bool}} $config
+     * @param array{users: array<class-string, array{password: string}>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, password_change_notification: array{notify_on_other_user: bool, notify_on_console: bool}, trusted_devices: array{enabled: bool, revoke_on_password_change: bool}} $config
      */
     private function loadPasswordChangeNotification(array $config, ContainerConfigurator $container): void
     {
@@ -271,6 +439,7 @@ final class IQ2iHerseBundle extends AbstractBundle
                 new Reference('logger'),
                 $notification['notify_on_other_user'],
                 $notification['notify_on_console'],
+                $config['trusted_devices']['enabled'] && $config['trusted_devices']['revoke_on_password_change'] ? new Reference(TrustedDevices::class) : null,
             ])
             ->tag('doctrine.event_listener', ['event' => 'onFlush', 'lazy' => true])
             ->tag('doctrine.event_listener', ['event' => 'postFlush', 'lazy' => true])

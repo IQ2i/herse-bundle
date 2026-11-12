@@ -58,7 +58,9 @@ final class Kernel extends SymfonyKernel
 
     protected function configureRoutes(RoutingConfigurator $routes): void
     {
-        $routes->add('login', '/login')->controller(LoginController::class)->methods(['POST']);
+        foreach (['login' => '/login', 'admin_login' => '/admin/login', 'public_login' => '/public/login'] as $name => $path) {
+            $routes->add($name, $path)->controller(LoginController::class)->methods(['POST']);
+        }
 
         if (self::usesDoctrine($this->getEnvironment())) {
             $routes->add('reset', '/reset')->controller(ResetPasswordController::class)->methods(['POST']);
@@ -73,6 +75,6 @@ final class Kernel extends SymfonyKernel
 
     private static function usesDoctrine(string $environment): bool
     {
-        return str_starts_with($environment, 'password_change_notification');
+        return str_starts_with($environment, 'password_change_notification') || str_starts_with($environment, 'trusted_devices');
     }
 }

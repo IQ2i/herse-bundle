@@ -41,8 +41,8 @@
     "vincentlanglet/twig-cs-fixer": "^4.1"
   },
   "suggest": {
-    "doctrine/doctrine-bundle": "To detect the password changes (password_change_notification)",
-    "doctrine/orm": "To detect the password changes (password_change_notification)",
+    "doctrine/doctrine-bundle": "To detect the password changes (password_change_notification) and to register the trusted devices (trusted_devices)",
+    "doctrine/orm": "To detect the password changes (password_change_notification) and to register the trusted devices (trusted_devices)",
     "symfony/mailer": "To send the security emails",
     "symfony/twig-bundle": "To render the security emails",
     "symfony/form": "To use the PasswordPolicyType form type",

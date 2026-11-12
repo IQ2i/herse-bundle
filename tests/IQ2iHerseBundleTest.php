@@ -13,6 +13,8 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
+use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
+use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
@@ -21,6 +23,9 @@ use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
 use IQ2i\HerseBundle\Tests\TestApplication\User;
+use IQ2i\HerseBundle\TrustedDevice\DeviceCookies;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceListener;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
@@ -28,6 +33,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\Form;
@@ -78,8 +84,9 @@ final class IQ2iHerseBundleTest extends TestCase
     public function testEachFeatureCanBeEnabled(): void
     {
         foreach (IQ2iHerseBundle::FEATURES as $feature) {
+            $options = 'trusted_devices' === $feature ? ['enabled' => true, 'firewalls' => ['main' => null]] : true;
             /** @var array<string, bool> $features */
-            $features = $this->load([$feature => true, 'mailer' => ['sender' => 'no-reply@example.com']])->getParameter('iq2i_herse.features');
+            $features = $this->load([$feature => $options, 'mailer' => ['sender' => 'no-reply@example.com']])->getParameter('iq2i_herse.features');
 
             self::assertSame([$feature], array_keys(array_filter($features)));
         }
@@ -350,7 +357,7 @@ final class IQ2iHerseBundleTest extends TestCase
 
         $listener = $container->getDefinition('iq2i_herse.password_change.listener');
         self::assertSame(PasswordChangeListener::class, $listener->getClass());
-        self::assertSame([true, true], \array_slice($listener->getArguments(), -2));
+        self::assertSame([true, true, null], \array_slice($listener->getArguments(), -3));
         self::assertSame(['onFlush', 'postFlush', 'onClear'], array_column($listener->getTag('doctrine.event_listener'), 'event'));
 
         $window = $container->getDefinition('iq2i_herse.password_change.authentication_window');
@@ -371,7 +378,7 @@ final class IQ2iHerseBundleTest extends TestCase
             'mailer' => ['sender' => 'no-reply@example.com', 'sender_name' => 'Example', 'app_name' => 'Shop'],
         ]);
 
-        self::assertSame([false, false], \array_slice($container->getDefinition('iq2i_herse.password_change.listener')->getArguments(), -2));
+        self::assertSame([false, false, null], \array_slice($container->getDefinition('iq2i_herse.password_change.listener')->getArguments(), -3));
         self::assertSame(['no-reply@example.com', 'Example', 'Shop'], \array_slice($container->getDefinition('iq2i_herse.mailer')->getArguments(), 3));
     }
 
@@ -420,6 +427,148 @@ final class IQ2iHerseBundleTest extends TestCase
         $this->expectExceptionMessage('iq2i_herse.password_change_notification requires acme/missing, acme/other. Try running "composer require acme/missing acme/other".');
 
         $assert->invoke(new IQ2iHerseBundle(), 'password_change_notification', ['acme/missing' => 'Acme\\Missing', 'acme/other' => 'Acme\\Other']);
+    }
+
+    public function testTrustedDevicesDeclareTheirServicesWithTheDefaultSettings(): void
+    {
+        $container = $this->load(['trusted_devices' => ['firewalls' => ['main' => null]], 'mailer' => ['sender' => 'no-reply@example.com']]);
+
+        self::assertSame(DeviceCookies::class, $container->getDefinition('iq2i_herse.trusted_devices.cookies')->getClass());
+        self::assertSame(
+            [['main' => ['cookie_name' => 'herse_device_main', 'lifetime' => '30 days']]],
+            $container->getDefinition('iq2i_herse.trusted_devices.cookies')->getArguments(),
+        );
+        self::assertSame([['event' => 'kernel.response', 'method' => 'onKernelResponse']], $container->getDefinition('iq2i_herse.trusted_devices.cookies')->getTag('kernel.event_listener'));
+
+        $listener = $container->getDefinition('iq2i_herse.trusted_devices.listener');
+        self::assertSame(TrustedDeviceListener::class, $listener->getClass());
+        self::assertSame([true, true], \array_slice($listener->getArguments(), -2));
+        self::assertSame([['event' => LoginSuccessEvent::class, 'method' => 'onLoginSuccess']], $listener->getTag('kernel.event_listener'));
+
+        self::assertTrue($container->getDefinition(TrustedDevices::class)->isPublic());
+        self::assertTrue($container->getDefinition(PurgeTrustedDevicesCommand::class)->hasTag('console.command'));
+        self::assertTrue($container->hasDefinition('iq2i_herse.mailer'));
+    }
+
+    public function testTrustedDevicesSettingsAreConfigurable(): void
+    {
+        $container = $this->load([
+            'trusted_devices' => [
+                'firewalls' => ['admin' => ['cookie_name' => 'admin.device', 'lifetime' => '7 days'], 'shop' => null],
+                'store_ip' => false,
+                'notify_first_device' => false,
+            ],
+            'mailer' => ['sender' => 'no-reply@example.com'],
+        ]);
+
+        self::assertSame(
+            [['admin' => ['cookie_name' => 'admin.device', 'lifetime' => '7 days'], 'shop' => ['cookie_name' => 'herse_device_shop', 'lifetime' => '30 days']]],
+            $container->getDefinition('iq2i_herse.trusted_devices.cookies')->getArguments(),
+        );
+        self::assertSame([false, false], \array_slice($container->getDefinition('iq2i_herse.trusted_devices.listener')->getArguments(), -2));
+    }
+
+    public function testTheDevicesAreRevokedOnPasswordChangeWhenAsked(): void
+    {
+        $container = $this->load([
+            'trusted_devices' => ['firewalls' => ['main' => null], 'revoke_on_password_change' => true],
+            'password_change_notification' => true,
+            'mailer' => ['sender' => 'no-reply@example.com'],
+        ]);
+
+        self::assertEquals(new Reference(TrustedDevices::class), $container->getDefinition('iq2i_herse.password_change.listener')->getArgument(10));
+    }
+
+    public function testTheRevocationOnPasswordChangeIsIgnoredWhileTheFeatureIsDisabled(): void
+    {
+        $container = $this->load([
+            'trusted_devices' => ['enabled' => false, 'revoke_on_password_change' => true],
+            'password_change_notification' => true,
+            'mailer' => ['sender' => 'no-reply@example.com'],
+        ]);
+
+        self::assertNull($container->getDefinition('iq2i_herse.password_change.listener')->getArgument(10));
+        self::assertFalse($container->hasDefinition(TrustedDevices::class));
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    #[DataProvider('provideInvalidTrustedDevices')]
+    public function testInvalidTrustedDevicesAreRejected(array $config, string $message): void
+    {
+        $this->expectExceptionMessage($message);
+
+        $this->load($config + ['mailer' => ['sender' => 'no-reply@example.com']]);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function provideInvalidTrustedDevices(): iterable
+    {
+        yield 'no firewall' => [['trusted_devices' => true], 'iq2i_herse.trusted_devices.firewalls requires at least one firewall'];
+        yield 'invalid lifetime' => [['trusted_devices' => ['firewalls' => ['main' => ['lifetime' => 'forever']]]], 'is not a valid interval'];
+        yield 'invalid cookie name' => [['trusted_devices' => ['firewalls' => ['main' => ['cookie_name' => 'a b;c']]]], 'is not a valid cookie name'];
+        yield 'revocation without the notification' => [['trusted_devices' => ['firewalls' => ['main' => null], 'revoke_on_password_change' => true]], 'revoke_on_password_change requires iq2i_herse.password_change_notification'];
+    }
+
+    public function testTrustedDevicesRequireASender(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.mailer.sender is required');
+
+        $this->load(['trusted_devices' => ['firewalls' => ['main' => null]]]);
+    }
+
+    /**
+     * @param array<string, mixed> $herse
+     */
+    #[DataProvider('provideTheDeviceMappingCases')]
+    public function testTheDeviceEntityIsMappedOnlyWhileTheFeatureIsEnabled(array $herse, bool $mapped): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new DoctrineExtension());
+        $container->prependExtensionConfig('iq2i_herse', $herse);
+
+        $extension = (new IQ2iHerseBundle())->getContainerExtension();
+        self::assertInstanceOf(PrependExtensionInterface::class, $extension);
+        $extension->prepend($container);
+
+        /** @var array{orm?: array{mappings?: array<string, mixed>}} $doctrine */
+        $doctrine = $container->getExtensionConfig('doctrine')[0] ?? [];
+        $mappings = $doctrine['orm']['mappings'] ?? [];
+        if ($mapped) {
+            self::assertSame(['type' => 'attribute', 'is_bundle' => false, 'dir' => \dirname(__DIR__).'/src/Entity', 'prefix' => 'IQ2i\\HerseBundle\\Entity'], $mappings['IQ2iHerse']);
+        } else {
+            self::assertSame([], $mappings);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, bool}>
+     */
+    public static function provideTheDeviceMappingCases(): iterable
+    {
+        yield 'enabled by a flag' => [['trusted_devices' => true], true];
+        yield 'enabled by its options' => [['trusted_devices' => ['firewalls' => ['main' => null]]], true];
+        yield 'enabled by an empty value' => [['trusted_devices' => null], true];
+        yield 'enabled explicitly' => [['trusted_devices' => ['enabled' => true]], true];
+        yield 'disabled' => [['trusted_devices' => false], false];
+        yield 'disabled explicitly' => [['trusted_devices' => ['enabled' => false, 'firewalls' => ['main' => null]]], false];
+        yield 'not configured' => [['password_policy' => true], false];
+        yield 'no configuration' => [[], false];
+    }
+
+    public function testTheDeviceEntityIsNotMappedWithoutDoctrine(): void
+    {
+        $container = new ContainerBuilder();
+        $container->prependExtensionConfig('iq2i_herse', ['trusted_devices' => true]);
+
+        $extension = (new IQ2iHerseBundle())->getContainerExtension();
+        self::assertInstanceOf(PrependExtensionInterface::class, $extension);
+        $extension->prepend($container);
+
+        self::assertSame([], $container->getExtensionConfig('doctrine'));
     }
 
     private function currentExceptionHandler(): ?callable
