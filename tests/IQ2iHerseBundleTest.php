@@ -16,6 +16,7 @@ namespace IQ2i\HerseBundle\Tests;
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
+use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeListener;
@@ -453,11 +454,10 @@ final class IQ2iHerseBundleTest extends TestCase
 
     public function testAMissingPackageIsReportedWithTheComposerCommand(): void
     {
-        $assert = new \ReflectionMethod(IQ2iHerseBundle::class, 'assertEmailRequirements');
-
         $this->expectExceptionMessage('iq2i_herse.password_change_notification requires acme/missing, acme/other. Try running "composer require acme/missing acme/other".');
 
-        $assert->invoke(new IQ2iHerseBundle(), 'password_change_notification', ['acme/missing' => 'Acme\\Missing', 'acme/other' => 'Acme\\Other']);
+        // @phpstan-ignore argument.type (the classes are missing on purpose)
+        SharedServices::assertEmailRequirements('password_change_notification', ['acme/missing' => 'Acme\\Missing', 'acme/other' => 'Acme\\Other']);
     }
 
     public function testTrustedDevicesDeclareTheirServicesWithTheDefaultSettings(): void
