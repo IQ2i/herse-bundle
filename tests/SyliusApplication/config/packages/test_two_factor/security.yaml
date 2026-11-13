@@ -2,6 +2,7 @@ security:
     firewalls:
         admin:
             two_factor:
-                auth_form_path: /admin/2fa
-                check_path: /admin/2fa_check
+                auth_form_path: iq2i_herse_admin_two_factor_form
+                check_path: iq2i_herse_admin_two_factor_check
+                enable_csrf: true
                 prepare_on_login: true

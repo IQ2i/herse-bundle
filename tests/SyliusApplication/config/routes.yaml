@@ -8,15 +8,10 @@ shop_login_check:
     methods: [POST]
     controller: App\Controller\LoginCheckController
 
-admin_two_factor_form:
-    path: /admin/2fa
-    methods: [GET]
-    controller: App\Controller\PageController
-
-admin_two_factor_check:
-    path: /admin/2fa_check
-    methods: [POST]
-    controller: App\Controller\LoginCheckController
+# The second factor form and the "my devices" screens, under the path prefix of each declared firewall.
+iq2i_herse:
+    resource: .
+    type: iq2i_herse
 
 admin_private:
     path: /admin/private

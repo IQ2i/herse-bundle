@@ -143,7 +143,12 @@ final class TwoFactorTest extends SyliusKernelTestCase
 
     private function submitCode(string $code, bool $trustDevice = false): Response
     {
-        return $this->send('POST', '/admin/2fa_check', ['_auth_code' => $code] + ($trustDevice ? ['_trusted' => '1'] : []));
+        // The form of the bundle, submitted as a browser does: with its CSRF token.
+        $form = (string) $this->send('GET', '/admin/2fa')->getContent();
+        self::assertStringContainsString('<form action="/admin/2fa_check" method="post"', $form);
+        self::assertSame(1, preg_match('/name="_csrf_token" value="([^"]+)"/', $form, $matches));
+
+        return $this->send('POST', '/admin/2fa_check', ['_auth_code' => $code, '_csrf_token' => $matches[1] ?? ''] + ($trustDevice ? ['_trusted' => '1'] : []));
     }
 
     private function visitPrivatePage(): Response

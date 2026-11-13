@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace App\Entity\User;
 
 use Doctrine\ORM\Mapping as ORM;
+use IQ2i\HerseBundle\TwoFactor\Model\EmailTwoFactorTrait;
 use Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface;
 use Sylius\Component\Core\Model\AdminUser as BaseAdminUser;
 
@@ -21,12 +22,14 @@ use Sylius\Component\Core\Model\AdminUser as BaseAdminUser;
 #[ORM\Table(name: 'sylius_admin_user')]
 class AdminUser extends BaseAdminUser implements TwoFactorInterface
 {
+    use EmailTwoFactorTrait;
+
     #[ORM\Column(type: 'boolean', options: ['default' => false])]
     private bool $emailAuthEnabled = false;
 
-    #[ORM\Column(type: 'string', nullable: true)]
-    private ?string $authCode = null;
-
+    /**
+     * Overrides the trait, which gives the second factor to every user: here an administrator opts in.
+     */
     public function isEmailAuthEnabled(): bool
     {
         return $this->emailAuthEnabled;
@@ -35,20 +38,5 @@ class AdminUser extends BaseAdminUser implements TwoFactorInterface
     public function enableEmailAuth(): void
     {
         $this->emailAuthEnabled = true;
-    }
-
-    public function getEmailAuthRecipient(): string
-    {
-        return (string) $this->getEmail();
-    }
-
-    public function getEmailAuthCode(): ?string
-    {
-        return $this->authCode;
-    }
-
-    public function setEmailAuthCode(string $authCode): void
-    {
-        $this->authCode = $authCode;
     }
 }

@@ -152,22 +152,36 @@ during the authentication is ignored by the bundle.
 
 ## Two-factor authentication
 
-The interface of scheb goes on the extended entity of your project, here the administrator:
+Declare the firewall of the administration with its path prefix, and import the routes of the bundle:
+
+```yaml
+# config/packages/iq2i_herse.yaml
+iq2i_herse:
+    firewalls:
+        admin: { path_prefix: /admin, home: sylius_admin_dashboard }
+        shop: { two_factor: false }          # left without second factor
+    two_factor:
+        enabled: true
+        method: email
+```
+
+```yaml
+# config/routes/iq2i_herse.yaml
+iq2i_herse:
+    resource: .
+    type: iq2i_herse
+```
+
+The trait of the bundle goes on the extended entity of your project, here the administrator:
 
 ```php
 // src/Entity/User/AdminUser.php
-class AdminUser extends BaseAdminUser implements Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface
+use IQ2i\HerseBundle\TwoFactor\Model\EmailTwoFactorTrait;
+use Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface;
+
+class AdminUser extends BaseAdminUser implements TwoFactorInterface
 {
-    #[ORM\Column(type: 'boolean', options: ['default' => false])]
-    private bool $emailAuthEnabled = false;
-
-    #[ORM\Column(type: 'string', nullable: true)]
-    private ?string $authCode = null;
-
-    public function isEmailAuthEnabled(): bool { return $this->emailAuthEnabled; }
-    public function getEmailAuthRecipient(): string { return (string) $this->getEmail(); }
-    public function getEmailAuthCode(): ?string { return $this->authCode; }
-    public function setEmailAuthCode(string $authCode): void { $this->authCode = $authCode; }
+    use EmailTwoFactorTrait;
 }
 ```
 
@@ -180,8 +194,9 @@ security:
             logout:
                 path: sylius_admin_logout
             two_factor:
-                auth_form_path: admin_two_factor_form
-                check_path: admin_two_factor_check
+                auth_form_path: iq2i_herse_admin_two_factor_form
+                check_path: iq2i_herse_admin_two_factor_check
+                enable_csrf: true
                 prepare_on_login: true
     access_control:
         - { path: "%sylius.security.admin_regex%/2fa", role: IS_AUTHENTICATED_2FA_IN_PROGRESS }
@@ -189,8 +204,24 @@ security:
 ```
 
 The rest is described in the [two-factor guide](two-factor.md). The test suite covers the administration; the shop
-firewall is left without second factor there. The administration and the shop have their own login screens: their
-code forms are routes of your project (`auth_form_path`), so each firewall can render its own template.
+firewall is left without second factor there.
+
+## Screens
+
+The screens of the bundle (second factor form, enrollment, "my devices", reset) are bare pages: they are not dressed
+as the administration of Sylius. Give the firewall a layout and, to restyle the forms, a theme of your project:
+
+```yaml
+iq2i_herse:
+    firewalls:
+        admin:
+            path_prefix: /admin
+            layout: admin/herse_layout.html.twig     # extends the layout of Sylius, with a "body" block
+            theme: admin/herse                       # templates replacing the ones of the bundle, see the two-factor guide
+```
+
+Link to `iq2i_herse_admin_devices` from the menu of the administration (event `sylius.menu.admin.main`), and to the
+reset screen from the list of the administrators with `herse_two_factor_reset_path(user)` in a Twig hook.
 
 ## Running the Sylius tests
 

@@ -1,7 +1,7 @@
 iq2i_herse:
-    # The second factor of this environment keeps routes of the project, as written before the bundle provided them.
     firewalls:
-        admin: { two_factor: false }
+        admin: { home: /admin/private }
+        # The shop is left without second factor.
         shop: { two_factor: false }
     two_factor:
         enabled: true

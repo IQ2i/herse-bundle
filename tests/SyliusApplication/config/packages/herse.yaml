@@ -10,7 +10,7 @@ iq2i_herse:
             email: customer.email
             plain_password: { property: plainPassword, groups: [sylius_user_registration] }
     firewalls:
-        admin: ~
+        admin: { path_prefix: /admin }
         shop: ~
     mailer:
         sender: no-reply@example.com

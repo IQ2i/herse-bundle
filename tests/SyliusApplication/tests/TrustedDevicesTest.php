@@ -21,6 +21,20 @@ use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
  */
 final class TrustedDevicesTest extends SyliusKernelTestCase
 {
+    public function testTheScreenOfTheBundleListsTheDevicesOfTheAdministrator(): void
+    {
+        $this->createAdmin();
+        $this->loginAsAdmin();
+
+        $screen = $this->send('GET', '/admin/devices');
+        $html = (string) $screen->getContent();
+
+        self::assertSame(200, $screen->getStatusCode());
+        self::assertStringContainsString('Firefox (macOS)', $html);
+        self::assertStringContainsString('This device', $html);
+        self::assertStringContainsString('action="/admin/devices/1/revoke"', $html);
+    }
+
     public function testAnUnknownAdministratorDeviceIsRegisteredAndTheAdministratorIsWarned(): void
     {
         $admin = $this->createAdmin();
