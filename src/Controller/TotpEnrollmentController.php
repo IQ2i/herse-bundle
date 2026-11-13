@@ -88,7 +88,9 @@ final class TotpEnrollmentController
             $session->set(self::SESSION_KEY.$firewall, $secret);
         }
 
-        $pending = new PendingTotp($user->getTotpAuthenticationUsername() ?? $user->getUserIdentifier(), $secret);
+        // Nullable from scheb 8 only: the cast reads both versions.
+        $username = (string) $user->getTotpAuthenticationUsername();
+        $pending = new PendingTotp('' !== $username ? $username : $user->getUserIdentifier(), $secret);
         $canTrustDevice = $this->trustedDevices?->canSetTrustedDevice($user, $request, $firewall) ?? false;
         $error = null;
 

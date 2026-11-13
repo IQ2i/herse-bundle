@@ -79,9 +79,11 @@ final class PasswordPolicyTypeExtension extends AbstractTypeExtension
 
     public function buildView(FormView $view, FormInterface $form, array $options): void
     {
-        if ($this->help && null === ($view->vars['help'] ?? null) && $this->applies($options) && !$this->isConfirmation($form)) {
-            $view->vars['help'] = $this->describer->summary();
-            $view->vars['help_translation_parameters'] = [];
+        // Read through a variable: the property has no type on the older versions of the Form component.
+        /** @var array<string, mixed> $vars */
+        $vars = $view->vars;
+        if ($this->help && null === ($vars['help'] ?? null) && $this->applies($options) && !$this->isConfirmation($form)) {
+            $view->vars = array_replace($vars, ['help' => $this->describer->summary(), 'help_translation_parameters' => []]);
         }
     }
 

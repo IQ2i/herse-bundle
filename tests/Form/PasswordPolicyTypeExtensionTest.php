@@ -23,6 +23,7 @@ use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormView;
 
 final class PasswordPolicyTypeExtensionTest extends PasswordPolicyKernelTestCase
 {
@@ -69,7 +70,7 @@ final class PasswordPolicyTypeExtensionTest extends PasswordPolicyKernelTestCase
         $form->submit(['password' => 'weak']);
 
         self::assertTrue($form->isValid());
-        self::assertArrayNotHasKey('help', array_filter($form->createView()['password']->vars, static fn (mixed $value): bool => null !== $value));
+        self::assertNull($this->help($form->createView()['password']));
     }
 
     public function testThePolicyCanBeForcedOrSwitchedOffPerField(): void
@@ -101,9 +102,9 @@ final class PasswordPolicyTypeExtensionTest extends PasswordPolicyKernelTestCase
             ->getForm()
             ->createView();
 
-        self::assertSame(self::HELP, $view['password']['first']->vars['help']);
-        self::assertNull($view['password']['second']->vars['help']);
-        self::assertSame('Choose wisely.', $view['custom']->vars['help']);
+        self::assertSame(self::HELP, $this->help($view['password']['first']));
+        self::assertNull($this->help($view['password']['second']));
+        self::assertSame('Choose wisely.', $this->help($view['custom']));
     }
 
     public function testThePlainPasswordOfADeclaredUserIsReportedOnce(): void
@@ -121,6 +122,14 @@ final class PasswordPolicyTypeExtensionTest extends PasswordPolicyKernelTestCase
         $form->submit(['password' => ['first' => 'weak-password', 'second' => 'weak-password']]);
 
         self::assertSame(['Le mot de passe doit contenir une lettre majuscule.', 'Le mot de passe doit contenir un chiffre.'], $this->errors($form));
+    }
+
+    private function help(FormView $view): mixed
+    {
+        /** @var array<string, mixed> $vars */
+        $vars = $view->vars;
+
+        return $vars['help'] ?? null;
     }
 
     private function form(?User $user = null): FormBuilderInterface
