@@ -85,6 +85,7 @@ On a project that already has users, enable the features one at a time in the or
 ## 6. Tests
 
 - Cover the project code you add (the user entity methods, the listeners on the Herse events, the screens) with tests; the bundle itself is tested.
+- Passing the second factor in a functional test: `IQ2i\HerseBundle\Test\TwoFactorTestTrait` (`passSecondFactor($client, $this->totpCode($secret))`, or the `getEmailAuthCode()` of the user for the email method).
 - Keep the features **enabled in the test environment** when the tests depend on them, instead of disabling them. A login test that fails on the throttling or on the second factor means the test must adapt (reset the cache pool, log in with the second factor), not the protection.
 - Events to hook into: `LoginThrottledEvent`, `NewDeviceEvent`, `PasswordChangedEvent`, `TwoFactorSucceededEvent`, `TwoFactorFailedEvent`, `TwoFactorThrottledEvent`, `TwoFactorEnabledEvent`, `TwoFactorResetEvent`, `TrustedDevicesRevokedEvent` (namespace `IQ2i\HerseBundle\Event`). A listener can `cancel()` or `setEmail()` on the ones that send an email.
 - Trusted devices are listed and revoked on the screen of the bundle, or in code through the public `IQ2i\HerseBundle\TrustedDevice\TrustedDevices` service.
@@ -100,6 +101,8 @@ On a project that already has users, enable the features one at a time in the or
 7. The tests, static analysis and coding standard of the project pass.
 
 ## Limits
+
+- The screens of the bundle are bare pages: give them the layout of the project (`ui.layout`, `firewalls.<name>.layout`) and, to restyle the forms, a theme (`firewalls.<name>.theme`). There is no ready-made theme for the administration of Sylius.
 
 - The cookie of the trusted devices is `Secure`: over plain HTTP (localhost excepted) it is never kept and every login looks like a new device.
 - Token authenticated firewalls (API) are not covered by the trusted devices.

@@ -35,6 +35,7 @@ iq2i_herse:
             path_prefix: ''                 # prefix of the routes of the bundle on the firewall, e.g. /admin
             home: ~                         # where the screens lead once done, a path or a route name; the path prefix by default
             layout: ~                       # template the screens extend on this firewall, ui.layout otherwise
+            theme: ~                        # directory of templates replacing the ones of the bundle on this firewall
             login_throttling: true          # require the limiter of the bundle while login_throttling is enabled
             two_factor: true                # generate the second factor routes and check the firewall while two_factor is enabled
             verify: true                    # false disables every check of the firewall
@@ -166,7 +167,9 @@ Shared by the three emails: new device, password changed, two-factor code (email
 - Defaults injected under `scheb_two_factor`, which the project configuration always overrides: email code of 6 digits sent by the bundle; TOTP issuer `mailer.app_name`; code form `@IQ2iHerse/two_factor/form.html.twig`; trusted device manager of the bundle. No `scheb_2fa.yaml` is needed.
 - User entity: `implements Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface` + `use IQ2i\HerseBundle\TwoFactor\Model\EmailTwoFactorTrait` (column `email_auth_code`, every user has the second factor), or `implements IQ2i\HerseBundle\TwoFactor\Model\TotpTwoFactorInterface` + `use TotpTwoFactorTrait` (column `totp_secret`, enabled once a secret is set). Then a migration.
 - The email code goes to `getEmailAuthRecipient()` of the user class, or to the `email` property path when it is empty (the trait).
-- Code form: extends `ui.layout` (or the `layout` of the firewall), which needs a `body` block. Override or embed `two_factor/_form.html.twig` in `templates/bundles/IQ2iHerseBundle/` to change the markup.
+- Screens: they extend `ui.layout` (or the `layout` of the firewall), which needs a `body` block. Override or embed a partial (`two_factor/_form.html.twig`, `two_factor/_setup.html.twig`, `two_factor/_reset.html.twig`, `devices/_list.html.twig`) in `templates/bundles/IQ2iHerseBundle/` to change the markup, or give a firewall its own `theme` directory holding templates of the same names (plus optional `security.html.twig` / `account.html.twig` frames defining the blocks `herse_title` and `herse_content`).
+- Twig functions: `herse_two_factor_reset_path(user)` (null when nothing to reset or without the role), `herse_password_policy()`.
+- Tests: `IQ2i\HerseBundle\Test\TwoFactorTestTrait` (`totpCode($secret)`, `passSecondFactor($client, $code)`); the email code is `getEmailAuthCode()` of the user read afresh.
 - `security.yaml` stays written by the project and is checked, see `firewalls`.
 - TOTP enrollment: route `iq2i_herse_<firewall>_two_factor_setup` (`<path_prefix>/second-factor/setup`), provided with its screen. With `required: true` (default) a user of a declared firewall without a secret is redirected to it from every page; with `false`, link to it. The secret is stored once a first code is accepted. QR code with `bacon/bacon-qr-code` (the key alone without it). Leads to `firewalls.<name>.home`. Never write an enrollment controller, a "pending secret" class or a redirect listener.
 - `trusted_devices: true` requires the `trusted_devices` feature, with the firewall watched there. The cookie and lifetime options of scheb then have no effect; `trusted_lifetime` counts from the verification and is not extended by logins.

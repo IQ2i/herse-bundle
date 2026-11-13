@@ -14,6 +14,10 @@ disabled by default; a disabled feature registers no service, listener or route.
 The three security emails (new device, password change, two-factor code) share one sender, described in
 [docs/emails.md](docs/emails.md).
 
+The bundle brings the screens with the features: the second factor form, the enrollment of an authenticator app,
+the reset of a lost one and the list of the trusted devices. They are bare pages placed in the layout of your
+project, see [docs/two-factor.md](docs/two-factor.md#the-code-form).
+
 Requirements: PHP 8.2+, Symfony 6.4, 7.x or 8.x. Sylius 2.2 and 2.3 are supported, see
 [docs/sylius.md](docs/sylius.md).
 

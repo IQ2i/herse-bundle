@@ -185,6 +185,19 @@ iq2i_herse:
 {% endembed %}
 ```
 
+- **A theme per firewall**: `iq2i_herse.firewalls.<name>.theme` is a directory of templates replacing the ones of
+  the bundle on that firewall only, under the same names. A template missing from the theme falls back on the bundle.
+
+```yaml
+iq2i_herse:
+    firewalls:
+        admin:
+            theme: admin/herse     # templates/admin/herse/two_factor/_form.html.twig, devices/_list.html.twig...
+```
+
+  Besides the partials, a theme may hold `security.html.twig` (the steps of the login: code form, enrollment) and
+  `account.html.twig` (the pages of a logged in user: devices, reset): the frames a screen extends, when placing it
+  in the `body` block of the layout is not enough. A frame defines the blocks `herse_title` and `herse_content`.
 - **Another template altogether**: `scheb_two_factor.email.template` or `scheb_two_factor.totp.template`, as with
   scheb alone. Keep the CSRF token field in it.
 
@@ -243,6 +256,14 @@ iq2i_herse:
 - **Your own code**, through the public service `IQ2i\HerseBundle\TwoFactor\TwoFactorResetter`:
   `reset($user, by: $administrator)`.
 
+In a list of users, `herse_two_factor_reset_path(user)` gives the path of the screen, coming back to the current
+page. It is null when the user has no authenticator app or when the current user lacks the role:
+
+```twig
+{% set reset = herse_two_factor_reset_path(user) %}
+{% if reset %}<a href="{{ reset }}">Reset two-factor</a>{% endif %}
+```
+
 With EasyAdmin, the action is ready: it links to the screen above, is only shown on the users having an
 authenticator app, and comes back to the page it was clicked on.
 
@@ -261,6 +282,34 @@ public function configureActions(Actions $actions): Actions
 
 `IQ2i\HerseBundle\Event\TwoFactorResetEvent` is dispatched after each reset, with the `UserReference`, the user and
 who did it (`by`, null from the console).
+
+## Testing your project
+
+Keep the second factor enabled in your tests. `IQ2i\HerseBundle\Test\TwoFactorTestTrait` passes it with the test
+browser of Symfony (`symfony/browser-kit`):
+
+```php
+use IQ2i\HerseBundle\Test\TwoFactorTestTrait;
+
+final class DashboardTest extends WebTestCase
+{
+    use TwoFactorTestTrait;
+
+    public function testTheDashboard(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/login');
+        $client->submitForm('Sign in', ['_username' => 'alice@example.com', '_password' => 'Sup3r-secret!']);
+
+        $this->passSecondFactor($client, $this->totpCode($alice->getTotpAuthenticationConfiguration()->getSecret()));
+        // Email method: the code is on the user, read afresh from the database: $alice->getEmailAuthCode().
+    }
+}
+```
+
+`loginUser()` of the test browser skips the second factor altogether: its token is not one scheb watches. Use it for
+the tests that are not about the login. The hash guard of the [password policy](password-policy.md#the-hash-guard)
+refuses the weak passwords of your fixtures: disable it under `when@test`.
 
 ## Checking the installation
 

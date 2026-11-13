@@ -88,3 +88,34 @@ Last, because it changes the login for the users ([guide](two-factor.md)).
 - [ ] The default templates are overridden in `templates/bundles/IQ2iHerseBundle/email/` if the emails must follow
       the graphic charter.
 - [ ] For Sylius: the [Sylius guide](sylius.md) is applied, firewall by firewall.
+
+## From 0.1 to 0.2
+
+Nothing is required: a project configured for 0.1 keeps working, with two changes of behaviour to know.
+
+- **The hash guard is on.** With `password_policy` enabled, hashing a password that breaks the policy now throws,
+  from any code path. Fixtures, factories and tests using weak passwords fail until you set
+  `password_policy.hash_guard: false` under `when@test` (and where weak fixtures are loaded).
+- **The default code form changed.** A project that did not set `scheb_two_factor.<method>.template` gets the form
+  of the bundle instead of the demo template of scheb.
+
+What 0.2 lets you delete, once the firewalls are declared under `iq2i_herse.firewalls`:
+
+| In your project                                                             | Replaced by                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `new PasswordPolicy()` added to form fields, RepeatedType written by hand   | `autocomplete="new-password"` on the field                          |
+| A validator call in the question of a console command                       | `PasswordQuestionValidator`                                         |
+| The policy described by hand in a help text                                 | The help of the field, `herse_password_policy()`                    |
+| The scheb methods and the column in the user entity                         | `EmailTwoFactorTrait`, `TotpTwoFactorTrait`                         |
+| `config/packages/scheb_2fa.yaml`, the routes of the code form               | Nothing, and `{ resource: ., type: iq2i_herse }`                    |
+| The template of the code form                                               | `ui.layout`, a theme                                                |
+| The controller enrolling an authenticator app, its "pending secret" class   | The enrollment screen                                               |
+| The listener redirecting the users without second factor                    | `two_factor.required`                                               |
+| The service, the command and the controller resetting a second factor       | `iq2i:herse:reset-two-factor`, `reset_role`, `ResetTwoFactorAction` |
+| The controller and the templates of the trusted devices                     | The "my devices" screen                                             |
+| Audit entries written next to these actions                                 | `TwoFactorEnabledEvent`, `TwoFactorResetEvent`, `TrustedDevicesRevokedEvent` |
+
+Switching the second factor to the routes of the bundle changes the names of the routes (`auth_form_path`,
+`check_path`) and adds `enable_csrf: true`: the container compilation tells what is missing in `security.yaml`. The
+columns of the traits are `email_auth_code` and `totp_secret`: keep the name of an existing column with an
+`#[ORM\AttributeOverride]`, or rename it in a migration.
