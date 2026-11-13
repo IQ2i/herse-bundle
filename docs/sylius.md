@@ -97,6 +97,10 @@ which the framework loads from `config/validator/`:
 The policy comes on top of the rules of Sylius (a length between 4 and 254 characters), which stay in force. The
 commands of the Sylius API (`RegisterShopUser`, `ChangeShopUserPassword`, `AccountResetPassword`,
 `AdminResetPassword`) are validated by their own mappings: add the constraint to them the same way if you use the API.
+
+Whatever the entry point, Sylius hashes through `sylius.security.password_updater`, which uses the password hasher of
+Symfony: the [hash guard](password-policy.md#the-hash-guard) covers it. The fixtures of Sylius hash weak passwords
+(`sylius`): load them with the guard disabled, e.g. `hash_guard: false` under `when@dev` and `when@test`.
 The test suite does not cover them.
 
 ## Login throttling

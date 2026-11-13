@@ -54,12 +54,19 @@ final class PasswordPolicy extends Constraint
     public string $invalidCharactersMessage = 'The password contains invalid characters.';
 
     /**
+     * False skips the lookup of the data breaches, a network call, where iq2i_herse.password_policy.check_compromised enables it.
+     */
+    public bool $checkCompromised = true;
+
+    /**
      * @param list<string>|null $groups
      */
     #[HasNamedArguments]
-    public function __construct(?array $groups = null, mixed $payload = null)
+    public function __construct(?array $groups = null, mixed $payload = null, bool $checkCompromised = true)
     {
         parent::__construct(null, $groups, $payload);
+
+        $this->checkCompromised = $checkCompromised;
     }
 
     public function validatedBy(): string

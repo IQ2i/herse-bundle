@@ -171,7 +171,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     users: array<class-string, array{type: string, email: string, id: string, password: string, locale: string|null, plain_password?: array{property?: string|null, groups?: list<string>}}>,
      *     firewalls: array<string, array{login_throttling: bool, verify: bool}>,
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
-     *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool},
+     *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool, hash_guard: bool, forms: array{auto: bool, help: bool}},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
      *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},

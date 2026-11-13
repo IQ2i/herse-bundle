@@ -67,7 +67,7 @@ final class PasswordPolicyValidator extends ConstraintValidator
 
         $this->validateCharacterTypes($password, $constraint);
 
-        if ($this->checkCompromised) {
+        if ($this->checkCompromised && $constraint->checkCompromised) {
             $this->context->getValidator()->inContext($this->context)->validate($password, new NotCompromisedPassword());
         }
     }

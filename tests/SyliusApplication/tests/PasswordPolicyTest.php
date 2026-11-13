@@ -15,9 +15,11 @@ namespace App\Tests;
 
 use App\Entity\User\AdminUser;
 use App\Entity\User\ShopUser;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyViolationException;
 use Sylius\Bundle\AdminBundle\Form\Model\PasswordReset as AdminPasswordReset;
 use Sylius\Bundle\UserBundle\Form\Model\ChangePassword;
 use Sylius\Bundle\UserBundle\Form\Model\PasswordReset;
+use Sylius\Component\User\Security\PasswordUpdaterInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -82,6 +84,23 @@ final class PasswordPolicyTest extends SyliusKernelTestCase
         self::assertCount(0, $this->validateProperty($change, 'newPassword'));
         self::assertCount(0, $this->validateProperty($reset, 'password'));
         self::assertCount(0, $this->validateProperty($adminReset, 'password'));
+    }
+
+    /**
+     * Sylius hashes through its own updater, whatever the screen or the command: a weak password never reaches the database.
+     */
+    public function testTheSyliusPasswordUpdaterRefusesAWeakPassword(): void
+    {
+        $updater = $this->service(PasswordUpdaterInterface::class, 'sylius.security.password_updater');
+
+        $user = new ShopUser();
+        $user->setPlainPassword(self::PASSWORD);
+        $updater->updatePassword($user);
+        self::assertNotNull($user->getPassword());
+
+        $user->setPlainPassword('weak');
+        $this->expectException(PasswordPolicyViolationException::class);
+        $updater->updatePassword($user);
     }
 
     /**

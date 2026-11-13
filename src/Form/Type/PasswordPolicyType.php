@@ -29,6 +29,8 @@ final class PasswordPolicyType extends AbstractType
         $resolver->setDefaults([
             'type' => PasswordType::class,
             'constraints' => [new PasswordPolicy()],
+            // The constraint above already reports the broken rules.
+            'options' => ['password_policy' => false],
             'invalid_message' => 'The password fields must match.',
             'first_options' => ['attr' => ['autocomplete' => 'new-password']],
             'second_options' => ['attr' => ['autocomplete' => 'new-password']],

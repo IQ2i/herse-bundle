@@ -15,12 +15,18 @@ namespace IQ2i\HerseBundle\Tests;
 
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
+use IQ2i\HerseBundle\Console\PasswordQuestionValidator;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
+use IQ2i\HerseBundle\Form\Extension\PasswordPolicyTypeExtension;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeListener;
 use IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification;
+use IQ2i\HerseBundle\PasswordPolicy\GuardedUserPasswordHasher;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyChecker;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyGuard;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
 use IQ2i\HerseBundle\Tests\TestApplication\ChildUser;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
@@ -28,6 +34,7 @@ use IQ2i\HerseBundle\Tests\TestApplication\User;
 use IQ2i\HerseBundle\TrustedDevice\DeviceCookies;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceListener;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
+use IQ2i\HerseBundle\Twig\HerseExtension;
 use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
@@ -44,6 +51,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\Form;
 use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasher;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\CacheStorage;
 use Symfony\Component\Security\Http\Event\CheckPassportEvent;
@@ -160,6 +168,45 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertSame([['alias' => PasswordPolicy::VALIDATOR_SERVICE]], $validator->getTag('validator.constraint_validator'));
         self::assertSame(class_exists(Form::class), $container->hasDefinition(PasswordPolicyType::class));
         self::assertFalse($container->hasDefinition(PasswordPolicyLoader::class));
+
+        foreach ([PasswordPolicyChecker::class, PasswordPolicyDescriber::class, PasswordPolicyGuard::class, PasswordQuestionValidator::class] as $service) {
+            self::assertTrue($container->getDefinition($service)->isPublic());
+        }
+        self::assertSame([12, 4], \array_slice($container->getDefinition(PasswordPolicyDescriber::class)->getArguments(), 0, 2));
+        self::assertTrue($container->getDefinition(HerseExtension::class)->hasTag('twig.extension'));
+    }
+
+    public function testTheHasherOfTheProjectIsGuardedByDefault(): void
+    {
+        $container = $this->newContainer();
+        $container->register('security.user_password_hasher', UserPasswordHasher::class);
+        $this->compile($container, ['password_policy' => true]);
+
+        // The decorator takes the id over: the original service is aliased next to it.
+        $hasher = $container->findDefinition('security.user_password_hasher');
+        self::assertSame(GuardedUserPasswordHasher::class, $hasher->getClass());
+        self::assertTrue($hasher->getArgument(3));
+    }
+
+    public function testTheHasherIsLeftAloneOnceTheGuardIsDisabled(): void
+    {
+        $container = $this->newContainer();
+        $container->register('security.user_password_hasher', UserPasswordHasher::class);
+        $this->compile($container, ['password_policy' => ['hash_guard' => false]]);
+
+        self::assertSame(UserPasswordHasher::class, $container->findDefinition('security.user_password_hasher')->getClass());
+    }
+
+    public function testTheFormExtensionFollowsItsOptions(): void
+    {
+        if (!class_exists(Form::class)) {
+            self::markTestSkipped('symfony/form is not installed.');
+        }
+
+        $extension = $this->load(['password_policy' => ['forms' => ['auto' => false, 'help' => false]]])->getDefinition(PasswordPolicyTypeExtension::class);
+
+        self::assertSame([[], false, false], \array_slice($extension->getArguments(), 2));
+        self::assertTrue($extension->hasTag('form.type_extension'));
     }
 
     public function testThePasswordPolicySettingsAreConfigurable(): void
@@ -893,7 +940,14 @@ final class IQ2iHerseBundleTest extends TestCase
      */
     private function load(array $config, ?array $bundles = null): ContainerBuilder
     {
-        $container = $this->newContainer($bundles);
+        return $this->compile($this->newContainer($bundles), $config);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function compile(ContainerBuilder $container, array $config): ContainerBuilder
+    {
         $extension = (new IQ2iHerseBundle())->getContainerExtension();
         self::assertNotNull($extension);
         $container->registerExtension($extension);

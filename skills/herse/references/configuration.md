@@ -46,6 +46,10 @@ iq2i_herse:
         max_length: 4096                    # PasswordHasherInterface::MAX_PASSWORD_LENGTH, must be >= min_length
         required_character_types: 4         # 0 to 4 among lowercase, uppercase, digit, special
         check_compromised: false            # symfony/http-client
+        hash_guard: true                    # refuse to hash a password breaking the policy; accepts %env(bool:...)%
+        forms:
+            auto: true                      # check every PasswordType with autocomplete="new-password"
+            help: true                      # describe the policy in the help of these fields
 
     login_throttling:
         enabled: false
@@ -108,8 +112,11 @@ Shared by the three emails: new device, password changed, two-factor code (email
 ## `password_policy`
 
 - Applied automatically to the `plain_password` property of the declared classes, in the declared groups.
-- By hand: `#[IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy]` (no argument, it reads the configuration; optional `groups`) on a DTO, an API payload or a command.
-- Form: `IQ2i\HerseBundle\Form\Type\PasswordPolicyType`, a `RepeatedType` of `PasswordType` fields carrying the constraint, with `autocomplete="new-password"` (needs `symfony/form`).
+- **Hash guard**: `UserPasswordHasherInterface` is decorated, so hashing a password that breaks the policy throws `PasswordPolicyViolationException` (`getMessages()`, never the password) from any code path, the password updater of Sylius included. Local rules only (no data breach lookup), not on the rehash at login. Disable it with `hash_guard: false` (typically under `when@test`, and `when@dev` for weak fixtures) or suspend it with `PasswordPolicyGuard::withoutGuard(callable)`. It is a net: validate first so that the person gets a message, not an exception.
+- **Forms** (needs `symfony/form`): every `PasswordType` with `autocomplete="new-password"` is checked on submit, mapped or not, whatever the validation groups; only the first field of a `RepeatedType`; never the login field. Field option `password_policy: true|false` forces or removes it. The help of the field describes the policy unless it has one (`forms.help`). Do not also add the constraint to such a field: each rule would be reported twice. `IQ2i\HerseBundle\Form\Type\PasswordPolicyType` is a ready-made repeated field.
+- **Console**: `$question->setValidator($passwordQuestionValidator)` with `IQ2i\HerseBundle\Console\PasswordQuestionValidator`.
+- **Code**: `IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyChecker::violations($password)` / `messages($password)`. `PasswordPolicyDescriber::rules()` / `summary()` and the Twig function `herse_password_policy()` describe the policy.
+- By hand: `#[IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy]` (no argument, it reads the configuration; optional `groups`) on a DTO or an API payload.
 - Models that are not yours: a validation mapping file in `config/validator/`, see `docs/sylius.md`.
 - A special character is anything that is neither a letter nor a digit. Each broken rule has its own message (domain `validators`, English and French) and its own error code constant (`TOO_SHORT_ERROR`, `TOO_LONG_ERROR`, `MISSING_LOWERCASE_ERROR`, `MISSING_UPPERCASE_ERROR`, `MISSING_DIGIT_ERROR`, `MISSING_SPECIAL_CHARACTER_ERROR`, `NOT_ENOUGH_CHARACTER_TYPES_ERROR`, `INVALID_CHARACTERS_ERROR`).
 - Only checks a password when it is set, never at login: existing passwords stay valid.
@@ -171,6 +178,10 @@ Public, safe to inject or call:
 |---|---|
 | `IQ2i\HerseBundle\TrustedDevice\TrustedDevices` | `list($user, ?$firewall)` (not expired, last used first), `isCurrent($device)`, `revoke($user, $deviceId)` (false when not owned), `revokeAll($user, keepCurrent: true)` (returns the count). The only way to revoke: it also clears the cookie. |
 | `IQ2i\HerseBundle\PasswordChange\PasswordChangeNotification` | `withoutNotification(callable)`, `disable()` / `enable()` (nestable), `isEnabled()`. A suspension ends with the request or message. |
+| `IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyChecker` | `violations($password, checkCompromised: true)`, `messages(...)`: a plain password against the policy. |
+| `IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyGuard` | `withoutGuard(callable)`, `disable()` / `enable()` (nestable), `isEnabled()`: suspends the hash guard. A suspension ends with the request or message. |
+| `IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber` | `rules(?$locale)`, `summary(?$locale)`: the policy, translated, for a help text. |
+| `IQ2i\HerseBundle\Console\PasswordQuestionValidator` | Validator of a console question asking for a new password. |
 | `IQ2i\HerseBundle\User\UserReference` | `type`, `identifier`, `equals()`. |
 | `iq2i_herse.login_throttling.limiter` | The limiter to give to the `login_throttling` option of each firewall. |
 | `iq2i_herse.user_resolver`, `iq2i_herse.mailer` | Internal wiring, do not depend on them. |

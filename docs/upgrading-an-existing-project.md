@@ -20,8 +20,13 @@ No schema, no email. Enable it and declare the plain password property of each u
 
 - The existing passwords stay valid: the policy only checks a password when it is set, never when it is used to log in.
   Users meet it the next time they choose a password.
-- Forms and DTOs that do not map the plain password of a declared class need the constraint added by hand or by a
-  validation mapping file.
+- The forms are covered through their `autocomplete="new-password"` fields: add the attribute where it is missing.
+  DTOs and API payloads need the constraint added by hand or by a validation mapping file.
+- The hash guard refuses weak passwords from every code path, fixtures and tests included: set
+  `password_policy.hash_guard: false` under `when@test`, and wrap the imports of legacy accounts in
+  `PasswordPolicyGuard::withoutGuard()`.
+- Remove the checks written by hand: a `PasswordPolicy` constraint added to a form field that now gets it by itself
+  reports each rule twice.
 
 ## 3. Login throttling
 

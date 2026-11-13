@@ -58,6 +58,30 @@
                 <source>If you did not try to sign in, change your password as soon as possible.</source>
                 <target>Si vous n'avez pas essayé de vous connecter, changez votre mot de passe au plus vite.</target>
             </trans-unit>
+            <trans-unit id="password_policy.length">
+                <source>at least %count% characters</source>
+                <target>au moins %count% caractères</target>
+            </trans-unit>
+            <trans-unit id="password_policy.lowercase">
+                <source>a lowercase letter</source>
+                <target>une lettre minuscule</target>
+            </trans-unit>
+            <trans-unit id="password_policy.uppercase">
+                <source>an uppercase letter</source>
+                <target>une lettre majuscule</target>
+            </trans-unit>
+            <trans-unit id="password_policy.digit">
+                <source>a digit</source>
+                <target>un chiffre</target>
+            </trans-unit>
+            <trans-unit id="password_policy.special">
+                <source>a special character</source>
+                <target>un caractère spécial</target>
+            </trans-unit>
+            <trans-unit id="password_policy.some_types">
+                <source>at least %count% of these: %types%</source>
+                <target>au moins %count% de ces éléments : %types%</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

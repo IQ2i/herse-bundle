@@ -13,18 +13,29 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\DependencyInjection\Feature;
 
+use IQ2i\HerseBundle\Console\PasswordQuestionValidator;
 use IQ2i\HerseBundle\DependencyInjection\Support;
+use IQ2i\HerseBundle\Form\Extension\PasswordPolicyTypeExtension;
 use IQ2i\HerseBundle\Form\Type\PasswordPolicyType;
+use IQ2i\HerseBundle\PasswordPolicy\GuardedUserPasswordHasher;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyChecker;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyGuard;
+use IQ2i\HerseBundle\Twig\HerseExtension;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
+use Twig\Extension\AbstractExtension;
 
 /**
  * The password policy: the validator, its automatic mapping on the user classes and the form type.
@@ -53,6 +64,23 @@ final class PasswordPolicyFeature
                     ->info('Reject passwords leaked in a data breach, with the native NotCompromisedPassword constraint.')
                     ->defaultFalse()
                 ->end()
+                ->booleanNode('hash_guard')
+                    ->info('Refuse to hash a password that breaks the policy, whatever the code path. Disable it where weak passwords are hashed on purpose, e.g. in the test environment.')
+                    ->defaultTrue()
+                ->end()
+                ->arrayNode('forms')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('auto')
+                            ->info('Apply the policy to every PasswordType field with autocomplete="new-password". The "password_policy" option of a field overrides it.')
+                            ->defaultTrue()
+                        ->end()
+                        ->booleanNode('help')
+                            ->info('Describe the policy in the help of these fields, unless they have one.')
+                            ->defaultTrue()
+                        ->end()
+                    ->end()
+                ->end()
             ->end()
             ->validate()
                 ->ifTrue(static fn (array $policy): bool => $policy['max_length'] < $policy['min_length'])
@@ -62,8 +90,8 @@ final class PasswordPolicyFeature
     }
 
     /**
-     * @param array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool} $policy
-     * @param array<class-string, array{property: string, groups: list<string>}>                                             $mapping
+     * @param array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool, hash_guard: bool, forms: array{auto: bool, help: bool}} $policy
+     * @param array<class-string, array{property: string, groups: list<string>}>                                                                                                     $mapping
      */
     public static function load(array $policy, array $mapping, ContainerConfigurator $container): void
     {
@@ -82,8 +110,36 @@ final class PasswordPolicyFeature
             $services->set(PasswordPolicyLoader::class)->args([$mapping]);
         }
 
+        // Public: the projects check a password, describe the policy and suspend the guard through them.
+        $services->set(PasswordPolicyChecker::class)->args([new Reference('validator')])->public();
+        $services->set(PasswordPolicyDescriber::class)
+            ->args([$policy['min_length'], $policy['required_character_types'], new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE)])
+            ->public()
+        ;
+        $services->set(PasswordPolicyGuard::class)->tag('kernel.reset', ['method' => 'reset'])->public();
+
+        // Not registered when it is literally disabled; an environment variable is only known at runtime.
+        if (false !== $policy['hash_guard']) {
+            $services->set('iq2i_herse.password_policy.guarded_hasher', GuardedUserPasswordHasher::class)
+                ->decorate('security.user_password_hasher', null, 0, ContainerInterface::IGNORE_ON_INVALID_REFERENCE)
+                ->args([new Reference('.inner'), new Reference(PasswordPolicyChecker::class), new Reference(PasswordPolicyGuard::class), $policy['hash_guard']])
+            ;
+        }
+
+        if (class_exists(Command::class)) {
+            $services->set(PasswordQuestionValidator::class)->args([new Reference(PasswordPolicyChecker::class)])->public();
+        }
+
+        if (class_exists(AbstractExtension::class)) {
+            $services->set(HerseExtension::class)->args([new Reference(PasswordPolicyDescriber::class)])->tag('twig.extension');
+        }
+
         if (ContainerBuilder::willBeAvailable('symfony/form', AbstractType::class, ['iq2i/herse-bundle'])) {
             $services->set(PasswordPolicyType::class)->tag('form.type');
+            $services->set(PasswordPolicyTypeExtension::class)
+                ->args([new Reference(PasswordPolicyChecker::class), new Reference(PasswordPolicyDescriber::class), $mapping, $policy['forms']['auto'], $policy['forms']['help']])
+                ->tag('form.type_extension')
+            ;
         }
     }
 
