@@ -55,6 +55,16 @@ iq2i_herse:
 
 The other options are described in the guide of each feature.
 
+## AI agents
+
+The bundle ships a skill and instructions for [Symfony Mate](https://symfony.com/doc/current/ai/components/mate.html),
+so that an AI agent can install and configure the features:
+
+```bash
+composer require --dev symfony/ai-mate
+vendor/bin/mate discover
+```
+
 ## Development
 
 The tools run in Docker.

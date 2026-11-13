@@ -59,6 +59,7 @@
     "symfony/mailer": "To send the security emails",
     "symfony/twig-bundle": "To render the security emails",
     "symfony/form": "To use the PasswordPolicyType form type",
+    "symfony/ai-mate": "Gives your agent the Herse skill (vendor/bin/mate discover)",
     "symfony/http-client": "To reject compromised passwords (password_policy.check_compromised)",
     "symfony/rate-limiter": "To limit the login attempts (login_throttling) and the wrong second factors (two_factor.throttling)",
     "symfony/translation": "To translate the validation messages"
@@ -80,6 +81,14 @@
     "psr-4": {
       "IQ2i\\HerseBundle\\Tests\\TestApplication\\": "tests/TestApplication/src",
       "IQ2i\\HerseBundle\\Tests\\": "tests"
+    }
+  },
+  "extra": {
+    "ai-mate": {
+      "instructions": "INSTRUCTIONS.md",
+      "skills": [
+        "skills"
+      ]
     }
   }
 }
