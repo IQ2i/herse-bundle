@@ -5,6 +5,7 @@ Source of truth for the installed version: `bin/console config:dump-reference iq
 ## Contents
 - Full configuration tree
 - `users`
+- `firewalls`
 - `mailer`
 - Features: `password_policy`, `login_throttling`, `trusted_devices`, `password_change_notification`, `two_factor`
 - Validation errors of the configuration
@@ -189,6 +190,7 @@ The compilation fails with a message naming the fix:
 - `iq2i_herse.password_policy: max_length must be greater than or equal to min_length.`
 - `iq2i_herse.firewalls: the firewall "…" is not declared in the security configuration.`
 - `The firewall "…" does not use the login limiter of Herse.`, followed by the lines to add to `security.yaml`.
+- `The firewall "…" does not ask for the second factor` / `does not use the second factor routes of Herse` / `does not protect the second factor form against CSRF` / `has no logout` / `does not cover "…"` (wrong `path_prefix`) / `has its second factor form "…" closed by an access rule`, each followed by the expected `security.yaml` block.
 
 ## Services and public API
 
@@ -236,5 +238,6 @@ All in `IQ2i\HerseBundle\Event`, dispatched with the Symfony event dispatcher.
 
 ## Overridable templates and translations
 
-- Templates in `templates/bundles/IQ2iHerseBundle/email/`: `layout.html.twig` (extended by the others), `new_device.html.twig`, `password_changed.html.twig`, `two_factor_code.html.twig`. Referenced as `@IQ2iHerse/email/…`.
-- Translations: domain `iq2i_herse` (emails) and `validators` (password policy), English and French. Override a message by defining the same key in the project catalogue.
+- Emails, in `templates/bundles/IQ2iHerseBundle/email/`: `layout.html.twig` (extended by the others), `new_device.html.twig`, `password_changed.html.twig`, `two_factor_code.html.twig`. Referenced as `@IQ2iHerse/email/…`.
+- Screens, in `templates/bundles/IQ2iHerseBundle/` or in the `theme` directory of a firewall: `two_factor/_form.html.twig` (code form), `two_factor/_setup.html.twig` (enrollment), `two_factor/_reset.html.twig` (reset confirmation), `devices/_list.html.twig`. Each one is made of `herse_*` blocks: `{% embed '@!IQ2iHerse/two_factor/_form.html.twig' %}` changes one block and keeps the rest (the CSRF field included).
+- Translations: domain `iq2i_herse` (emails, screens, description of the password policy) and `validators` (password policy), English and French. Override a message by defining the same key in the project catalogue.

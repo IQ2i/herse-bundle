@@ -76,7 +76,7 @@ What each feature asks of the project:
 
 ## 4. Sylius
 
-The bundle contains no Sylius code: it works through the per-class and per-firewall configuration. Follow `docs/sylius.md`: two user types (`admin`, `shop`), `customer.email` for the shop user, the validation groups of Sylius for the password policy, one line per firewall (`admin`, `shop`), and the form models of Sylius for the change and the reset of a password. The `api_*` firewalls authenticate with a token and are not covered by the trusted devices.
+The bundle contains no Sylius code: it works through the per-class and per-firewall configuration. Follow `docs/sylius.md`: two user types (`admin`, `shop`), `customer.email` for the shop user, the validation groups of Sylius for the password policy, the firewalls declared with `admin: { path_prefix: /admin }`, one `login_throttling` line per firewall, and the form models of Sylius for the change and the reset of a password. The hash guard covers the password updater of Sylius: disable it where the weak fixtures of Sylius are loaded. The screens work on Sylius but are not dressed as its administration: give the `admin` firewall a `layout` and a `theme` of the project. The `api_*` firewalls authenticate with a token and are not covered by the trusted devices.
 
 ## 5. Existing project
 
@@ -93,7 +93,7 @@ On a project that already has users, enable the features one at a time in the or
 ## 7. Checklist
 
 1. `bin/console debug:config iq2i_herse` shows the expected values and the container compiles.
-2. Each enabled feature has its packages, its project-side wiring (`security.yaml`, entity, routes) and its migration.
+2. Each enabled feature has its packages, its project-side wiring (`iq2i_herse.firewalls`, `security.yaml`, the entity trait, the import of the routes) and its migration.
 3. The check at the end of the guide of each feature passes.
 4. The migration of `iq2i_herse_trusted_device` is part of the deployment and the purge is scheduled.
 5. `mailer.sender` belongs to a domain whose emails are delivered (SPF, DKIM).
