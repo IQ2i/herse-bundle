@@ -72,7 +72,7 @@ final class SharedServices
     /**
      * The routes, the layout and the Twig functions of the screens of the bundle.
      *
-     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool}} $config
+     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null}} $config
      */
     public static function loadUi(array $config, ContainerConfigurator $container): void
     {
@@ -89,7 +89,7 @@ final class SharedServices
 
             if (class_exists(RouteCollection::class)) {
                 $services->set('iq2i_herse.route_loader', HerseRouteLoader::class)
-                    ->args([$config['firewalls'], $config['two_factor']['enabled'] ? $config['two_factor']['method'] ?? null : null])
+                    ->args([$config['firewalls'], $config['two_factor']['enabled'] ? $config['two_factor']['method'] ?? null : null, null !== $config['two_factor']['reset_role']])
                     ->tag('routing.loader')
                 ;
             }

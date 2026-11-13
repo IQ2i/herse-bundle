@@ -17,5 +17,5 @@ use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\TotpAccount;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorScreensConfig;
 
 return static function (ContainerConfigurator $container): void {
-    TwoFactorScreensConfig::load($container, 'totp', TotpAccount::class);
+    TwoFactorScreensConfig::load($container, 'totp', TotpAccount::class, twoFactor: ['reset_role' => 'ROLE_ADMIN']);
 };

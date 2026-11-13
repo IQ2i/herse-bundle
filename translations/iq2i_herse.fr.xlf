@@ -134,6 +134,34 @@
                 <source>This code is not valid.</source>
                 <target>Ce code n'est pas valide.</target>
             </trans-unit>
+            <trans-unit id="two_factor_reset.title">
+                <source>Reset two-factor authentication</source>
+                <target>Réinitialiser la double authentification</target>
+            </trans-unit>
+            <trans-unit id="two_factor_reset.question">
+                <source>Reset the two-factor authentication of %user%?</source>
+                <target>Réinitialiser la double authentification de %user% ?</target>
+            </trans-unit>
+            <trans-unit id="two_factor_reset.consequences">
+                <source>The authenticator app and the trusted devices of this account will stop working. The user sets up a new app at the next login.</source>
+                <target>L'application d'authentification et les appareils de confiance de ce compte cesseront de fonctionner. L'utilisateur configurera une nouvelle application à sa prochaine connexion.</target>
+            </trans-unit>
+            <trans-unit id="two_factor_reset.not_enrolled">
+                <source>This account has no authenticator app yet.</source>
+                <target>Ce compte n'a pas encore d'application d'authentification.</target>
+            </trans-unit>
+            <trans-unit id="two_factor_reset.submit">
+                <source>Reset</source>
+                <target>Réinitialiser</target>
+            </trans-unit>
+            <trans-unit id="two_factor_reset.done">
+                <source>The two-factor authentication was reset: the user sets it up again at the next login.</source>
+                <target>La double authentification a été réinitialisée : l'utilisateur la configurera à nouveau à sa prochaine connexion.</target>
+            </trans-unit>
+            <trans-unit id="two_factor_reset.action">
+                <source>Reset two-factor</source>
+                <target>Réinitialiser la 2FA</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

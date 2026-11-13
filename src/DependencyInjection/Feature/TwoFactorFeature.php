@@ -14,11 +14,17 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\DependencyInjection\Feature;
 
 use BaconQrCode\Writer;
+use Doctrine\Persistence\ManagerRegistry;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
+use IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction;
+use IQ2i\HerseBundle\Command\ResetTwoFactorCommand;
 use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
+use IQ2i\HerseBundle\Controller\TwoFactorResetController;
 use IQ2i\HerseBundle\DependencyInjection\LimiterConfiguration;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\DependencyInjection\Support;
 use IQ2i\HerseBundle\Mailer\Mailer;
+use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
 use IQ2i\HerseBundle\TwoFactor\EnrollmentListener;
 use IQ2i\HerseBundle\TwoFactor\QrCode\BaconQrCodeRenderer;
@@ -26,6 +32,8 @@ use IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface;
 use IQ2i\HerseBundle\TwoFactor\SecondFactorThrottler;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
+use IQ2i\HerseBundle\TwoFactor\TwoFactorResetter;
+use IQ2i\HerseBundle\User\UserLoader;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Email\EmailTwoFactorProvider;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Totp\TotpAuthenticator;
@@ -63,6 +71,11 @@ final class TwoFactorFeature
                     ->info('With totp, send the users without an authenticator app to the enrollment screen on the declared firewalls, until they have one. With email, every user of a class using the trait of the bundle has the second factor.')
                     ->defaultTrue()
                 ->end()
+                ->scalarNode('reset_role')
+                    ->info('With totp, the role allowed to reset the second factor of a user (e.g. ROLE_ADMIN) from the screen of the bundle. No such screen without it.')
+                    ->defaultNull()
+                    ->cannotBeEmpty()
+                ->end()
                 ->booleanNode('trusted_devices')
                     ->info('Skip the second factor on a device that passed it and was trusted by the user, with the device registry in place of the cookie of scheb. Requires trusted_devices and scheb/2fa-trusted-device.')
                     ->defaultFalse()
@@ -95,7 +108,7 @@ final class TwoFactorFeature
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', required: bool, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', required: bool, reset_role: string|null, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
      */
     public static function load(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -153,6 +166,10 @@ final class TwoFactorFeature
             ;
         }
 
+        if ('totp' === $method) {
+            self::loadReset($services, $config, [] !== $config['firewalls'] ? $config['two_factor']['reset_role'] : null);
+        }
+
         if ('totp' === $method && [] !== $config['firewalls']) {
             self::loadEnrollment($services, $config['two_factor']['required'], $throttling['enabled'], $bridge);
         }
@@ -204,6 +221,64 @@ final class TwoFactorFeature
                 // Right after the firewall, which loads the user and answers a logout by itself.
                 ->tag('kernel.event_listener', ['event' => KernelEvents::REQUEST, 'method' => 'onKernelRequest', 'priority' => 7])
             ;
+        }
+    }
+
+    /**
+     * What removes the authenticator app of a user: a service, a console command and, with a role, a screen.
+     *
+     * @param array{users: array<class-string, array<string, mixed>>, trusted_devices: array{enabled: bool}} $config
+     */
+    private static function loadReset(ServicesConfigurator $services, array $config, ?string $role): void
+    {
+        // Public: the projects reset a second factor from their own screens through it.
+        $services->set(TwoFactorResetter::class)
+            ->args([
+                new Reference('scheb_two_factor.persister'),
+                new Reference('iq2i_herse.user_resolver'),
+                new Reference('event_dispatcher'),
+                $config['trusted_devices']['enabled'] ? new Reference(TrustedDevices::class) : null,
+            ])
+            ->public()
+        ;
+
+        if (!interface_exists(ManagerRegistry::class)) {
+            return;
+        }
+
+        $services->set('iq2i_herse.user_loader', UserLoader::class)->args([$config['users'], new Reference('doctrine')]);
+
+        if (class_exists(Command::class)) {
+            $services->set(ResetTwoFactorCommand::class)->args([new Reference('iq2i_herse.user_loader'), new Reference(TwoFactorResetter::class)])->tag('console.command');
+        }
+
+        if (null === $role) {
+            return;
+        }
+
+        // Public: the route of the reset screen names it.
+        $services->set(TwoFactorResetController::class)
+            ->args([
+                new Reference('iq2i_herse.firewall_registry'),
+                new Reference('security.helper'),
+                new Reference('iq2i_herse.user_loader'),
+                new Reference(TwoFactorResetter::class),
+                new Reference('security.csrf.token_manager'),
+                new Reference('twig'),
+                $role,
+                new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->public()
+        ;
+
+        if (class_exists(Action::class)) {
+            $services->set(ResetTwoFactorAction::class)->args([
+                new Reference('iq2i_herse.firewall_registry'),
+                new Reference('iq2i_herse.user_resolver'),
+                new Reference('router'),
+                new Reference('request_stack'),
+                new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ]);
         }
     }
 

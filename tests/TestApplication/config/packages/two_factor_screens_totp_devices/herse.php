@@ -13,10 +13,11 @@ declare(strict_types=1);
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
+use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\EmailAccount;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\TotpAccount;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorScreensConfig;
 
 return static function (ContainerConfigurator $container): void {
     // The trusted devices watch the declared firewalls: none is listed.
-    TwoFactorScreensConfig::load($container, 'totp', TotpAccount::class, ['trusted_devices' => true], ['trusted_devices' => true]);
+    TwoFactorScreensConfig::load($container, 'totp', TotpAccount::class, ['trusted_devices' => true], ['trusted_devices' => true], [EmailAccount::class => 'member']);
 };

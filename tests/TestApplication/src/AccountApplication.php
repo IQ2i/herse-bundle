@@ -26,13 +26,14 @@ final class AccountApplication
      * @param array<string, mixed>                $herse        options of iq2i_herse, besides the users and the mailer
      * @param array<string, array<string, mixed>> $firewalls
      * @param class-string                        $accountClass the user class: "Account", or an entity of another directory
+     * @param array<class-string, string>         $otherUsers   more user classes, with their type
      */
-    public static function load(ContainerConfigurator $container, array $herse, array $firewalls, string $passwordField = 'password', string $accountClass = Account::class): void
+    public static function load(ContainerConfigurator $container, array $herse, array $firewalls, string $passwordField = 'password', string $accountClass = Account::class, array $otherUsers = []): void
     {
         $container->extension('iq2i_herse', [
             'users' => [
                 $accountClass => ['type' => 'customer', 'email' => 'email', 'locale' => 'locale', 'password' => $passwordField],
-            ],
+            ] + array_map(static fn (string $type): array => ['type' => $type, 'email' => 'email'], $otherUsers),
             'mailer' => ['sender' => 'no-reply@example.com', 'sender_name' => 'Example', 'app_name' => 'Example shop'],
         ] + $herse);
         $container->extension('framework', [

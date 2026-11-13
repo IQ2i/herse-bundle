@@ -1,0 +1,25 @@
+{# user: the account, username: its name in the authenticator app, enrolled: whether it has an app, back: where to return. #}
+{% block herse_two_factor_reset %}
+    <form method="post" class="herse-two-factor-reset">
+        {% block herse_two_factor_reset_intro %}
+            <p>{{ 'Reset the two-factor authentication of %user%?'|trans({'%user%': username}, 'iq2i_herse') }}</p>
+            <p>
+                {% if enrolled %}
+                    {{ 'The authenticator app and the trusted devices of this account will stop working. The user sets up a new app at the next login.'|trans({}, 'iq2i_herse') }}
+                {% else %}
+                    {{ 'This account has no authenticator app yet.'|trans({}, 'iq2i_herse') }}
+                {% endif %}
+            </p>
+        {% endblock %}
+
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token(csrfTokenId) }}">
+        <input type="hidden" name="back" value="{{ back }}">
+
+        {% block herse_two_factor_reset_actions %}
+            <p>
+                <button type="submit">{{ 'Reset'|trans({}, 'iq2i_herse') }}</button>
+                <a href="{{ back }}">{{ 'Cancel'|trans({}, 'iq2i_herse') }}</a>
+            </p>
+        {% endblock %}
+    </form>
+{% endblock %}

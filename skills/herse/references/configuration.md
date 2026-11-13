@@ -87,6 +87,7 @@ iq2i_herse:
         enabled: false
         method: ~                           # email | totp, required when enabled
         required: true                      # totp: a user without authenticator app is sent to the enrollment screen
+        reset_role: ~                       # totp: the role allowed to reset the second factor of a user on the screen of the bundle
         trusted_devices: false
         trusted_lifetime: '30 days'
         throttling:
@@ -169,7 +170,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 - `trusted_devices: true` requires the `trusted_devices` feature, with the firewall watched there. The cookie and lifetime options of scheb then have no effect; `trusted_lifetime` counts from the verification and is not extended by logins.
 - `throttling`: wrong second factors per user and firewall, whatever the IP. `throttling: false` removes it, only when the project brings its own. The login throttling cannot replace it.
 - `enabled`, `method` and `trusted_devices` must be literal values, not environment variables.
-- No backup codes.
+- No backup codes. A lost authenticator app is reset (the user enrolls again, their trusted devices are revoked): `bin/console iq2i:herse:reset-two-factor <email> [--type=]`; with `reset_role`, the screen `iq2i_herse_<firewall>_two_factor_reset` (`<path_prefix>/second-factor/reset/{type}/{id}`, optional `back` path) for the users having that role; or `IQ2i\HerseBundle\TwoFactor\TwoFactorResetter::reset($user, by: $admin)`. With EasyAdmin, inject `IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction` in the CRUD controller and add `->create()` to its actions. Never write a reset command, service or controller.
 
 ## Validation errors of the configuration
 
@@ -196,6 +197,8 @@ Public, safe to inject or call:
 | `IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyGuard` | `withoutGuard(callable)`, `disable()` / `enable()` (nestable), `isEnabled()`: suspends the hash guard. A suspension ends with the request or message. |
 | `IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber` | `rules(?$locale)`, `summary(?$locale)`: the policy, translated, for a help text. |
 | `IQ2i\HerseBundle\Console\PasswordQuestionValidator` | Validator of a console question asking for a new password. |
+| `IQ2i\HerseBundle\TwoFactor\TwoFactorResetter` | `reset($user, by: null)`: removes the authenticator app of a user and revokes their trusted devices. With `method: totp`. |
+| `IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction` | `create()`: the EasyAdmin action linking to the reset screen. With `reset_role` and EasyAdmin. |
 | `IQ2i\HerseBundle\User\UserReference` | `type`, `identifier`, `equals()`. |
 | `iq2i_herse.login_throttling.limiter` | The limiter to give to the `login_throttling` option of each firewall. |
 | `iq2i_herse.user_resolver`, `iq2i_herse.mailer` | Internal wiring, do not depend on them. |
@@ -215,12 +218,15 @@ All in `IQ2i\HerseBundle\Event`, dispatched with the Symfony event dispatcher.
 | `TwoFactorFailedEvent` | same | Relays scheb. |
 | `TwoFactorThrottledEvent` | same | Once, when the limit is reached. |
 | `TwoFactorEnabledEvent` | same | Once a user enrolled an authenticator app on the screen of the bundle. Never carries the secret. |
+| `TwoFactorResetEvent` | `reference`, `user`, `by` (who did it, null from the console) | After the authenticator app of a user was removed. |
 
 `TrustLevel` (`Known`, `Verified`) is the trust of a device: `Verified` means it passed a second factor and was trusted by the user.
 
-## Console command
+## Console commands
 
 `iq2i:herse:purge-trusted-devices` deletes the expired trusted devices; `--dry-run` only counts them. Registered only with `trusted_devices` enabled. Schedule it (cron, Symfony Scheduler), for instance daily.
+
+`iq2i:herse:reset-two-factor <email> [--type=]` removes the authenticator app of a user. Registered with `two_factor.method: totp` and Doctrine.
 
 ## Overridable templates and translations
 

@@ -23,12 +23,13 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 final class TwoFactorScreensConfig
 {
     /**
-     * @param 'email'|'totp'       $method
-     * @param class-string         $accountClass the user class
-     * @param array<string, mixed> $herse        more options of iq2i_herse
-     * @param array<string, mixed> $twoFactor    more options of two_factor
+     * @param 'email'|'totp'              $method
+     * @param class-string                $accountClass the user class
+     * @param array<string, mixed>        $herse        more options of iq2i_herse
+     * @param array<string, mixed>        $twoFactor    more options of two_factor
+     * @param array<class-string, string> $otherUsers   more user classes, with their type
      */
-    public static function load(ContainerConfigurator $container, string $method, string $accountClass, array $herse = [], array $twoFactor = []): void
+    public static function load(ContainerConfigurator $container, string $method, string $accountClass, array $herse = [], array $twoFactor = [], array $otherUsers = []): void
     {
         $firewalls = [];
         foreach (['admin' => '/admin', 'main' => ''] as $name => $prefix) {
@@ -48,7 +49,7 @@ final class TwoFactorScreensConfig
         AccountApplication::load($container, $herse + [
             'firewalls' => ['admin' => ['path_prefix' => '/admin', 'layout' => 'admin_layout.html.twig'], 'main' => null],
             'two_factor' => $twoFactor + ['method' => $method, 'throttling' => ['cache_pool' => 'herse_two_factor_throttling']],
-        ], $firewalls, accountClass: $accountClass);
+        ], $firewalls, accountClass: $accountClass, otherUsers: $otherUsers);
 
         $container->extension('framework', [
             'session' => ['storage_factory_id' => 'session.storage.factory.mock_file'],

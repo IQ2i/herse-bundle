@@ -14,9 +14,13 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\Tests;
 
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
+use IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction;
 use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
+use IQ2i\HerseBundle\Command\ResetTwoFactorCommand;
 use IQ2i\HerseBundle\Console\PasswordQuestionValidator;
 use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
+use IQ2i\HerseBundle\Controller\TwoFactorResetController;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\Form\Extension\PasswordPolicyTypeExtension;
@@ -42,6 +46,7 @@ use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
 use IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
+use IQ2i\HerseBundle\TwoFactor\TwoFactorResetter;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
@@ -217,6 +222,35 @@ final class IQ2iHerseBundleTest extends TestCase
 
         self::assertFalse($this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'email'], 'mailer' => ['sender' => 'no-reply@example.com']])->hasDefinition(TotpEnrollmentController::class));
         self::assertFalse($this->load(['two_factor' => ['method' => 'totp']])->hasDefinition(TotpEnrollmentController::class));
+    }
+
+    public function testTheResetOfTheSecondFactorComesWithTheAuthenticatorApp(): void
+    {
+        $this->requireScheb();
+        $firewalls = ['main' => ['verify' => false]];
+
+        $container = $this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'totp', 'reset_role' => 'ROLE_ADMIN']]);
+        self::assertTrue($container->getDefinition(TwoFactorResetter::class)->isPublic());
+        self::assertNull($container->getDefinition(TwoFactorResetter::class)->getArgument(3));
+        self::assertTrue($container->getDefinition(ResetTwoFactorCommand::class)->hasTag('console.command'));
+        self::assertTrue($container->getDefinition(TwoFactorResetController::class)->isPublic());
+        self::assertSame('ROLE_ADMIN', $container->getDefinition(TwoFactorResetController::class)->getArgument(6));
+        self::assertTrue($container->getDefinition('iq2i_herse.route_loader')->getArgument(2));
+        self::assertSame(class_exists(Action::class), $container->hasDefinition(ResetTwoFactorAction::class));
+
+        // Without a role, the console command and the service stay: nobody can reset from the application.
+        $withoutRole = $this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'totp']]);
+        self::assertTrue($withoutRole->hasDefinition(ResetTwoFactorCommand::class));
+        self::assertFalse($withoutRole->hasDefinition(TwoFactorResetController::class));
+        self::assertFalse($withoutRole->getDefinition('iq2i_herse.route_loader')->getArgument(2));
+
+        // The screen needs a declared firewall.
+        self::assertFalse($this->load(['two_factor' => ['method' => 'totp', 'reset_role' => 'ROLE_ADMIN']])->hasDefinition(TwoFactorResetController::class));
+
+        $withDevices = $this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'totp'], 'trusted_devices' => true, 'mailer' => ['sender' => 'no-reply@example.com']]);
+        self::assertEquals(new Reference(TrustedDevices::class), $withDevices->getDefinition(TwoFactorResetter::class)->getArgument(3));
+
+        self::assertFalse($this->load(['two_factor' => ['method' => 'email'], 'mailer' => ['sender' => 'no-reply@example.com']])->hasDefinition(TwoFactorResetter::class));
     }
 
     public function testNoScreenServiceIsDeclaredWithoutDeclaredFirewall(): void

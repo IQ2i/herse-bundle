@@ -215,10 +215,52 @@ user, the firewall and the IP, never the secret.
 The secret is stored as scheb reads it, in clear text in the `totp_secret` column: protect the database and its
 backups accordingly.
 
-## Backup codes
+## Resetting a lost authenticator app
 
-Backup codes are not provided: with TOTP, a lost phone means an intervention of your support, to settle before
-deploying it.
+Backup codes are not provided: with TOTP, a user who lost their phone needs their second factor removed, and enrolls
+a new app at the next login. The trusted devices of the user are revoked with it. Three ways, all with `method: totp`:
+
+- **Console**, the last resort when nobody can do it from the application (the only administrator lost their phone):
+
+```bash
+bin/console iq2i:herse:reset-two-factor alice@example.com            # --type=admin when several user types share the address
+```
+
+- **Screen of the bundle**, for the users having a role you name. Without the role, no screen exists.
+
+```yaml
+iq2i_herse:
+    two_factor:
+        reset_role: ROLE_ADMIN
+```
+
+  Each declared firewall gets `iq2i_herse_<firewall>_two_factor_reset`
+  (`<path_prefix>/second-factor/reset/{type}/{id}`, the type and the identifier of the `UserReference`): a
+  confirmation page, then the reset on a POST protected against CSRF. Link to it from your user list, with an
+  optional `back` parameter, a path of your site the screen returns to. It is closed to somebody impersonating a
+  user.
+
+- **Your own code**, through the public service `IQ2i\HerseBundle\TwoFactor\TwoFactorResetter`:
+  `reset($user, by: $administrator)`.
+
+With EasyAdmin, the action is ready: it links to the screen above, is only shown on the users having an
+authenticator app, and comes back to the page it was clicked on.
+
+```php
+use IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction;
+
+public function __construct(private readonly ResetTwoFactorAction $resetTwoFactor)
+{
+}
+
+public function configureActions(Actions $actions): Actions
+{
+    return $actions->add(Crud::PAGE_INDEX, $this->resetTwoFactor->create());
+}
+```
+
+`IQ2i\HerseBundle\Event\TwoFactorResetEvent` is dispatched after each reset, with the `UserReference`, the user and
+who did it (`by`, null from the console).
 
 ## Checking the installation
 

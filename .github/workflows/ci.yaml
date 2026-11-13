@@ -66,8 +66,9 @@ jobs:
                   coverage: none
                   tools: composer:v2
 
+            # EasyAdmin requires symfony/form: it would bring it back.
             - name: "Remove symfony/form"
-              run: composer remove --dev symfony/form --no-interaction --no-progress
+              run: composer remove --dev symfony/form easycorp/easyadmin-bundle --no-interaction --no-progress
 
             - name: "Run PHPUnit"
               run: vendor/bin/phpunit
