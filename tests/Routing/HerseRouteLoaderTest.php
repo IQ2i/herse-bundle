@@ -49,6 +49,29 @@ final class HerseRouteLoaderTest extends TestCase
         self::assertNull($routes->get('iq2i_herse_api_two_factor_setup'));
     }
 
+    public function testAnAdministratorResetsTheSecondFactorWhenARoleIsNamed(): void
+    {
+        $routes = (new HerseRouteLoader(self::FIREWALLS, 'totp', true))->load('.', 'iq2i_herse');
+
+        self::assertSame('/admin/second-factor/reset/{type}/{id}', $routes->get('iq2i_herse_admin_two_factor_reset')?->getPath());
+        self::assertNull((new HerseRouteLoader(self::FIREWALLS, 'totp'))->load('.', 'iq2i_herse')->get('iq2i_herse_admin_two_factor_reset'));
+        self::assertNull((new HerseRouteLoader(self::FIREWALLS, 'email', true))->load('.', 'iq2i_herse')->get('iq2i_herse_admin_two_factor_reset'));
+    }
+
+    public function testTheWatchedFirewallsGetTheScreenOfTheirDevices(): void
+    {
+        $routes = (new HerseRouteLoader(self::FIREWALLS, null, deviceFirewalls: ['admin', 'api']))->load('.', 'iq2i_herse');
+
+        self::assertSame(
+            ['iq2i_herse_admin_devices' => '/admin/devices', 'iq2i_herse_admin_device_revoke' => '/admin/devices/{id}/revoke', 'iq2i_herse_admin_devices_revoke_others' => '/admin/devices/revoke-others', 'iq2i_herse_api_devices' => '/api/devices', 'iq2i_herse_api_device_revoke' => '/api/devices/{id}/revoke', 'iq2i_herse_api_devices_revoke_others' => '/api/devices/revoke-others'],
+            array_map(static fn ($route): string => $route->getPath(), $routes->all()),
+        );
+        self::assertSame(['GET'], $routes->get('iq2i_herse_admin_devices')?->getMethods());
+        self::assertSame(['POST'], $routes->get('iq2i_herse_admin_device_revoke')?->getMethods());
+        self::assertSame('\d+', $routes->get('iq2i_herse_admin_device_revoke')->getRequirement('id'));
+        self::assertSame(['POST'], $routes->get('iq2i_herse_admin_devices_revoke_others')?->getMethods());
+    }
+
     public function testNoRouteIsGeneratedWhileTheSecondFactorIsDisabled(): void
     {
         self::assertCount(0, (new HerseRouteLoader(self::FIREWALLS, null))->load('.', 'iq2i_herse'));

@@ -1,0 +1,59 @@
+{# devices: a list of { device: TrustedDevice, current: bool }, the most recently used first. #}
+{% block herse_devices %}
+    <div class="herse-devices">
+        {% block herse_devices_intro %}
+            <p>{{ 'These are the devices your account was used from. Revoke the ones you do not recognise, then change your password.'|trans({}, 'iq2i_herse') }}</p>
+        {% endblock %}
+
+        {% block herse_devices_messages %}
+            {% for message in app.flashes('success') %}
+                <p role="status" class="herse-success">{{ message }}</p>
+            {% endfor %}
+        {% endblock %}
+
+        {% block herse_devices_list %}
+            {% if devices is empty %}
+                <p>{{ 'No device is registered yet.'|trans({}, 'iq2i_herse') }}</p>
+            {% else %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ 'Device'|trans({}, 'iq2i_herse') }}</th>
+                            <th scope="col">{{ 'Last used'|trans({}, 'iq2i_herse') }}</th>
+                            <th scope="col">{{ 'IP address'|trans({}, 'iq2i_herse') }}</th>
+                            <th scope="col"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in devices %}
+                            <tr>
+                                <td>
+                                    {{ item.device.label ?? 'Unknown device'|trans({}, 'iq2i_herse') }}
+                                    {% if item.current %}<strong>{{ 'This device'|trans({}, 'iq2i_herse') }}</strong>{% endif %}
+                                    {% if item.device.trustLevel.value == 'verified' %}<em>{{ 'Trusted'|trans({}, 'iq2i_herse') }}</em>{% endif %}
+                                </td>
+                                <td>{{ item.device.lastUsedAt|date('Y-m-d H:i') }}</td>
+                                <td>{{ item.device.lastIp }}</td>
+                                <td>
+                                    <form method="post" action="{{ path(revokeRoute, {id: item.device.id}) }}">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token(csrfTokenId) }}">
+                                        <button type="submit">{{ 'Revoke'|trans({}, 'iq2i_herse') }}</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        {% endblock %}
+
+        {% block herse_devices_actions %}
+            {% if devices|length > 1 %}
+                <form method="post" action="{{ path(revokeOthersRoute) }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token(csrfTokenId) }}">
+                    <button type="submit">{{ 'Revoke the other devices'|trans({}, 'iq2i_herse') }}</button>
+                </form>
+            {% endif %}
+        {% endblock %}
+    </div>
+{% endblock %}

@@ -10,7 +10,7 @@ Source of truth for the installed version: `bin/console config:dump-reference iq
 - Validation errors of the configuration
 - Services and public API
 - Events
-- Console command
+- Console commands
 - Overridable templates and translations
 
 ## Full configuration tree
@@ -77,6 +77,7 @@ iq2i_herse:
         notify_first_device: true
         notify_before_second_factor: false
         revoke_on_password_change: false
+        screen: true                        # the declared firewalls that are watched get the "my devices" screen
 
     password_change_notification:
         enabled: false
@@ -150,6 +151,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 - `revoke_on_password_change: true` revokes the devices of a user whose password changes, keeping the browser of the owner who changed it. Requires `password_change_notification`.
 - `enabled` must be a literal boolean: the Doctrine mapping is added before environment variables are resolved.
 - Purge: `bin/console iq2i:herse:purge-trusted-devices [--dry-run]`.
+- "My devices" screen, on each firewall both declared in `iq2i_herse.firewalls` and watched: `iq2i_herse_<firewall>_devices` (`<path_prefix>/devices`), `_device_revoke` (POST `<path_prefix>/devices/{id}/revoke`), `_devices_revoke_others` (POST). CSRF protected, own devices only, closed during an impersonation. Import the routes (`{ resource: ., type: iq2i_herse }`) and link to it; override or embed `devices/_list.html.twig`. Never write a devices controller or template; `screen: false` only for a project keeping its own.
 
 ## `password_change_notification`
 
@@ -214,6 +216,7 @@ All in `IQ2i\HerseBundle\Event`, dispatched with the Symfony event dispatcher.
 | `LoginThrottledEvent` | `limit` (`LoginThrottlingLimit`: `IdentifierAndIp`, `Ip`, `Identifier`), `identifier`, `ip`, `firewall` | Once per window and limit, when a failed attempt exhausts it. Never on a successful login. |
 | `NewDeviceEvent` | `reference`, `user`, `firewall`, `label`, `ip`, `createdAt` | After the device is registered. `cancel()`, `isCancelled()`, `getEmail()`, `setEmail(?TemplatedEmail)`. Dispatched even with `notify_first_device: false` (email null). |
 | `PasswordChangedEvent` | `reference`, `user`, `context` (`PasswordChangeContext`: `Self`, `OtherUser`, `Console`), `changedAt` | Before the email is sent. `cancel()`, `isCancelled()`, `getEmail()`, `setEmail(TemplatedEmail)`. |
+| `TrustedDevicesRevokedEvent` | `reference`, `count` | After devices of a user were revoked (screen, service, reset of the second factor, password change). Not by the purge. |
 | `TwoFactorSucceededEvent` | `reference` (null if the class is not declared), `user`, `firewall`, `ip` | Relays scheb. Never carries the code. |
 | `TwoFactorFailedEvent` | same | Relays scheb. |
 | `TwoFactorThrottledEvent` | same | Once, when the limit is reached. |

@@ -20,6 +20,7 @@ use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
 use IQ2i\HerseBundle\Command\ResetTwoFactorCommand;
 use IQ2i\HerseBundle\Console\PasswordQuestionValidator;
 use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
+use IQ2i\HerseBundle\Controller\TrustedDevicesController;
 use IQ2i\HerseBundle\Controller\TwoFactorResetController;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
@@ -251,6 +252,27 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertEquals(new Reference(TrustedDevices::class), $withDevices->getDefinition(TwoFactorResetter::class)->getArgument(3));
 
         self::assertFalse($this->load(['two_factor' => ['method' => 'email'], 'mailer' => ['sender' => 'no-reply@example.com']])->hasDefinition(TwoFactorResetter::class));
+    }
+
+    public function testTheWatchedFirewallsThatAreDeclaredGetTheScreenOfTheDevices(): void
+    {
+        $firewalls = ['admin' => ['verify' => false], 'main' => ['verify' => false]];
+        $mailer = ['sender' => 'no-reply@example.com'];
+
+        $container = $this->load(['firewalls' => $firewalls, 'trusted_devices' => true, 'mailer' => $mailer]);
+        self::assertTrue($container->getDefinition(TrustedDevicesController::class)->isPublic());
+        self::assertSame(['admin', 'main'], $container->getDefinition('iq2i_herse.route_loader')->getArgument(3));
+        self::assertTrue($container->hasDefinition(HerseExtension::class));
+        self::assertEquals(new Reference('event_dispatcher'), $container->getDefinition(TrustedDevices::class)->getArgument(4));
+
+        $some = $this->load(['firewalls' => $firewalls, 'trusted_devices' => ['firewalls' => ['main' => null, 'shop' => null]], 'mailer' => $mailer]);
+        self::assertSame(['main'], $some->getDefinition('iq2i_herse.route_loader')->getArgument(3));
+
+        $none = $this->load(['firewalls' => $firewalls, 'trusted_devices' => ['screen' => false], 'mailer' => $mailer]);
+        self::assertSame([], $none->getDefinition('iq2i_herse.route_loader')->getArgument(3));
+        self::assertFalse($none->hasDefinition(TrustedDevicesController::class));
+
+        self::assertFalse($this->load(['trusted_devices' => ['firewalls' => ['main' => null]], 'mailer' => $mailer])->hasDefinition(TrustedDevicesController::class));
     }
 
     public function testNoScreenServiceIsDeclaredWithoutDeclaredFirewall(): void

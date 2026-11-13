@@ -162,6 +162,62 @@
                 <source>Reset two-factor</source>
                 <target>Réinitialiser la 2FA</target>
             </trans-unit>
+            <trans-unit id="devices.title">
+                <source>My devices</source>
+                <target>Mes appareils</target>
+            </trans-unit>
+            <trans-unit id="devices.intro">
+                <source>These are the devices your account was used from. Revoke the ones you do not recognise, then change your password.</source>
+                <target>Voici les appareils depuis lesquels votre compte a été utilisé. Révoquez ceux que vous ne reconnaissez pas, puis changez votre mot de passe.</target>
+            </trans-unit>
+            <trans-unit id="devices.empty">
+                <source>No device is registered yet.</source>
+                <target>Aucun appareil n'est encore enregistré.</target>
+            </trans-unit>
+            <trans-unit id="devices.device">
+                <source>Device</source>
+                <target>Appareil</target>
+            </trans-unit>
+            <trans-unit id="devices.last_used">
+                <source>Last used</source>
+                <target>Dernière utilisation</target>
+            </trans-unit>
+            <trans-unit id="devices.ip">
+                <source>IP address</source>
+                <target>Adresse IP</target>
+            </trans-unit>
+            <trans-unit id="devices.unknown">
+                <source>Unknown device</source>
+                <target>Appareil inconnu</target>
+            </trans-unit>
+            <trans-unit id="devices.current">
+                <source>This device</source>
+                <target>Cet appareil</target>
+            </trans-unit>
+            <trans-unit id="devices.trusted">
+                <source>Trusted</source>
+                <target>De confiance</target>
+            </trans-unit>
+            <trans-unit id="devices.revoke">
+                <source>Revoke</source>
+                <target>Révoquer</target>
+            </trans-unit>
+            <trans-unit id="devices.revoke_others">
+                <source>Revoke the other devices</source>
+                <target>Révoquer les autres appareils</target>
+            </trans-unit>
+            <trans-unit id="devices.revoked">
+                <source>The device was revoked.</source>
+                <target>L'appareil a été révoqué.</target>
+            </trans-unit>
+            <trans-unit id="devices.others_revoked">
+                <source>The other devices were revoked.</source>
+                <target>Les autres appareils ont été révoqués.</target>
+            </trans-unit>
+            <trans-unit id="devices.no_other">
+                <source>There was no other device to revoke.</source>
+                <target>Il n'y avait aucun autre appareil à révoquer.</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

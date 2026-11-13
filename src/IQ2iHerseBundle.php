@@ -160,7 +160,7 @@ final class IQ2iHerseBundle extends AbstractBundle
 
         $children
             ->arrayNode('ui')
-                ->info('The screens of the bundle: the second factor form and the enrollment of an authenticator app.')
+                ->info('The screens of the bundle: the second factor, the enrollment of an authenticator app, the trusted devices.')
                 ->addDefaultsIfNotSet()
                 ->children()
                     ->scalarNode('layout')
@@ -211,7 +211,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool, hash_guard: bool, forms: array{auto: bool, help: bool}},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
-     *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
+     *     trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
      *     two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
      * } $config

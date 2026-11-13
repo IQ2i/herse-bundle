@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\DependencyInjection;
 
+use IQ2i\HerseBundle\DependencyInjection\Feature\TrustedDevicesFeature;
 use IQ2i\HerseBundle\Mailer\Mailer;
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
 use IQ2i\HerseBundle\Routing\HerseRouteLoader;
@@ -72,7 +73,7 @@ final class SharedServices
     /**
      * The routes, the layout and the Twig functions of the screens of the bundle.
      *
-     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null}} $config
+     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null}, trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, mixed>}} $config
      */
     public static function loadUi(array $config, ContainerConfigurator $container): void
     {
@@ -89,13 +90,18 @@ final class SharedServices
 
             if (class_exists(RouteCollection::class)) {
                 $services->set('iq2i_herse.route_loader', HerseRouteLoader::class)
-                    ->args([$config['firewalls'], $config['two_factor']['enabled'] ? $config['two_factor']['method'] ?? null : null, null !== $config['two_factor']['reset_role']])
+                    ->args([
+                        $config['firewalls'],
+                        $config['two_factor']['enabled'] ? $config['two_factor']['method'] ?? null : null,
+                        null !== $config['two_factor']['reset_role'],
+                        TrustedDevicesFeature::screenFirewalls($config),
+                    ])
                     ->tag('routing.loader')
                 ;
             }
         }
 
-        if (class_exists(AbstractExtension::class) && ($config['password_policy']['enabled'] || $config['two_factor']['enabled'])) {
+        if (class_exists(AbstractExtension::class) && ($config['password_policy']['enabled'] || $config['two_factor']['enabled'] || [] !== TrustedDevicesFeature::screenFirewalls($config))) {
             $services->set(HerseExtension::class)
                 ->args([
                     $config['password_policy']['enabled'] ? new Reference(PasswordPolicyDescriber::class) : null,

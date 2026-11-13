@@ -30,6 +30,7 @@ iq2i_herse:
         notify_first_device: true        # default: also warn for the first device of a user
         notify_before_second_factor: false # with two_factor, warn when the password is accepted
         revoke_on_password_change: false # requires password_change_notification
+        screen: true                     # default: the declared firewalls get the "my devices" screen
 ```
 
 ## Database
@@ -82,10 +83,41 @@ The cookie is `HttpOnly`, `Secure` and `SameSite=Lax`, so a project served over 
 keeps it. Revoking a device removes the trust, it does not end the session in progress. The firewalls that
 authenticate with a token (API) are not covered: the registry relies on a browser cookie.
 
-## Listing and revoking the devices
+## The "my devices" screen
 
-Projects list and revoke the devices through the public `IQ2i\HerseBundle\TrustedDevice\TrustedDevices` service, and
-build their own screen. The repository stays internal.
+Each firewall that is both declared in `iq2i_herse.firewalls` and watched gets a screen where the user sees the
+devices their account was used from on that firewall, revokes one, or revokes all the others. Import the routes of
+the bundle once, then link to the screen from your account page or your menu:
+
+```yaml
+# config/routes/iq2i_herse.yaml
+iq2i_herse:
+    resource: .
+    type: iq2i_herse
+```
+
+```twig
+<a href="{{ path('iq2i_herse_main_devices') }}">My devices</a>
+```
+
+| Route                                       | Path                                    |
+| ------------------------------------------- | --------------------------------------- |
+| `iq2i_herse_<firewall>_devices`               | `<path_prefix>/devices`                 |
+| `iq2i_herse_<firewall>_device_revoke`         | `<path_prefix>/devices/{id}/revoke`     |
+| `iq2i_herse_<firewall>_devices_revoke_others` | `<path_prefix>/devices/revoke-others`   |
+
+- The revocations are POST requests protected against CSRF, and a user only reaches their own devices.
+- The screen is closed to somebody impersonating a user: hide your link with `is_granted('IS_IMPERSONATOR')`.
+- It extends `iq2i_herse.ui.layout` (or the `layout` of the firewall), as the screens of the
+  [second factor](two-factor.md#the-code-form). Override or embed `devices/_list.html.twig` in
+  `templates/bundles/IQ2iHerseBundle/` to change the markup (blocks `herse_devices_intro`, `herse_devices_messages`,
+  `herse_devices_list`, `herse_devices_actions`).
+- `screen: false` removes the routes, for a project building its own screen with the service below.
+
+## Listing and revoking the devices in your code
+
+The public `IQ2i\HerseBundle\TrustedDevice\TrustedDevices` service lists and revokes the devices. The repository
+stays internal.
 
 ```php
 $devices = $trustedDevices->list($user);              // not expired, last used first; optional firewall
@@ -99,11 +131,15 @@ Every revocation goes through this service, which also clears the cookie when th
 [notification](password-change-notification.md): the same cases, the same suspension). The owner who changes their
 password keeps the browser they are using. This happens whatever the settings of the notification are.
 
-## Event
+## Events
 
 `IQ2i\HerseBundle\Event\NewDeviceEvent` is dispatched once a new device is registered, with the `UserReference`, the
 user object, the firewall, the label, the IP, the date and the email (null when none is meant to be sent). A listener
 can call `cancel()`, or `setEmail()` to replace or supply the message.
+
+`IQ2i\HerseBundle\Event\TrustedDevicesRevokedEvent` is dispatched once devices were revoked through the service or
+the screen, with the `UserReference` and the number of devices. The purge of the expired devices does not dispatch
+it.
 
 ## Checking the installation
 

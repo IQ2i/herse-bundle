@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\Routing;
 
 use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
+use IQ2i\HerseBundle\Controller\TrustedDevicesController;
 use IQ2i\HerseBundle\Controller\TwoFactorResetController;
 use Symfony\Component\Config\Loader\Loader;
 use Symfony\Component\Routing\Route;
@@ -31,6 +32,9 @@ final class HerseRouteLoader extends Loader
     public const TWO_FACTOR_CHECK = 'two_factor_check';
     public const TWO_FACTOR_SETUP = 'two_factor_setup';
     public const TWO_FACTOR_RESET = 'two_factor_reset';
+    public const DEVICES = 'devices';
+    public const DEVICE_REVOKE = 'device_revoke';
+    public const DEVICES_REVOKE_OTHERS = 'devices_revoke_others';
 
     // The setup is not under "/2fa": the access rule opening that path to a pending second factor must not cover it.
     private const PATHS = [
@@ -38,17 +42,22 @@ final class HerseRouteLoader extends Loader
         self::TWO_FACTOR_CHECK => '/2fa_check',
         self::TWO_FACTOR_SETUP => '/second-factor/setup',
         self::TWO_FACTOR_RESET => '/second-factor/reset/{type}/{id}',
+        self::DEVICES => '/devices',
+        self::DEVICE_REVOKE => '/devices/{id}/revoke',
+        self::DEVICES_REVOKE_OTHERS => '/devices/revoke-others',
     ];
 
     /**
      * @param array<string, array{path_prefix: string, two_factor: bool}> $firewalls       the declared firewalls
      * @param 'email'|'totp'|null                                         $twoFactorMethod null while the second factor is disabled
      * @param bool                                                        $twoFactorReset  whether an administrator can reset the second factor of a user
+     * @param list<string>                                                $deviceFirewalls the firewalls having the screen of the trusted devices
      */
     public function __construct(
         private readonly array $firewalls,
         private readonly ?string $twoFactorMethod,
         private readonly bool $twoFactorReset = false,
+        private readonly array $deviceFirewalls = [],
     ) {
         parent::__construct();
     }
@@ -67,6 +76,12 @@ final class HerseRouteLoader extends Loader
     {
         $routes = new RouteCollection();
         foreach ($this->firewalls as $name => $firewall) {
+            if (\in_array($name, $this->deviceFirewalls, true)) {
+                $routes->add(self::name($name, self::DEVICES), new Route(self::path($firewall['path_prefix'], self::DEVICES), ['_controller' => TrustedDevicesController::class.'::index'], methods: ['GET']));
+                $routes->add(self::name($name, self::DEVICE_REVOKE), new Route(self::path($firewall['path_prefix'], self::DEVICE_REVOKE), ['_controller' => TrustedDevicesController::class.'::revoke'], ['id' => '\d+'], methods: ['POST']));
+                $routes->add(self::name($name, self::DEVICES_REVOKE_OTHERS), new Route(self::path($firewall['path_prefix'], self::DEVICES_REVOKE_OTHERS), ['_controller' => TrustedDevicesController::class.'::revokeOthers'], methods: ['POST']));
+            }
+
             if (null === $this->twoFactorMethod || !$firewall['two_factor']) {
                 continue;
             }

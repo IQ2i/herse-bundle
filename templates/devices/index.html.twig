@@ -1,0 +1,7 @@
+{% extends herse_layout() %}
+
+{% block title %}{{ 'My devices'|trans({}, 'iq2i_herse') }}{% endblock %}
+
+{% block body %}
+    {{ include('@IQ2iHerse/devices/_list.html.twig') }}
+{% endblock %}

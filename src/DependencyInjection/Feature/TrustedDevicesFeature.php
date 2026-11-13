@@ -16,6 +16,7 @@ namespace IQ2i\HerseBundle\DependencyInjection\Feature;
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Doctrine\ORM\EntityManagerInterface;
 use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
+use IQ2i\HerseBundle\Controller\TrustedDevicesController;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\DependencyInjection\Support;
 use IQ2i\HerseBundle\Mailer\Mailer;
@@ -28,6 +29,7 @@ use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -88,6 +90,10 @@ final class TrustedDevicesFeature
                 ->info('With two_factor, warn about a new device as soon as the password is accepted instead of once the second factor is passed. It warns the user that their password is known to a third party even when the second factor then fails.')
                 ->defaultFalse()
             ->end()
+            ->booleanNode('screen')
+                ->info('Give the declared firewalls (iq2i_herse.firewalls) the screen where a user sees and revokes their devices.')
+                ->defaultTrue()
+            ->end()
             ->booleanNode('revoke_on_password_change')
                 ->info('Revoke the devices of a user whose password changes, but the current one when the owner changes it. Requires password_change_notification.')
                 ->defaultFalse()
@@ -96,7 +102,7 @@ final class TrustedDevicesFeature
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
      */
     public static function load(array $config, ContainerConfigurator $container): void
     {
@@ -155,15 +161,50 @@ final class TrustedDevicesFeature
                 new Reference('iq2i_herse.trusted_devices.repository'),
                 new Reference('iq2i_herse.trusted_devices.cookies'),
                 new Reference('request_stack'),
+                new Reference('event_dispatcher'),
             ])
             ->public()
         ;
+
+        if ([] !== self::screenFirewalls($config)) {
+            // Public: the routes of the screen name it.
+            $services->set(TrustedDevicesController::class)
+                ->args([
+                    new Reference('iq2i_herse.firewall_registry'),
+                    new Reference('security.helper'),
+                    new Reference('iq2i_herse.user_resolver'),
+                    new Reference(TrustedDevices::class),
+                    new Reference('security.csrf.token_manager'),
+                    new Reference('router'),
+                    new Reference('twig'),
+                    new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                ])
+                ->public()
+            ;
+        }
 
         if (class_exists(Command::class)) {
             $services->set(PurgeTrustedDevicesCommand::class)->args([new Reference('iq2i_herse.trusted_devices.repository')])->tag('console.command');
         }
 
         SharedServices::loadMailer($config, $container);
+    }
+
+    /**
+     * @param array{firewalls: array<string, mixed>, trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, mixed>}} $config
+     *
+     * @return list<string> the declared firewalls whose devices are watched: they get the screen
+     */
+    public static function screenFirewalls(array $config): array
+    {
+        $devices = $config['trusted_devices'];
+        if (!$devices['enabled'] || !$devices['screen']) {
+            return [];
+        }
+
+        $declared = array_keys($config['firewalls']);
+
+        return [] === $devices['firewalls'] ? $declared : array_values(array_intersect($declared, array_keys($devices['firewalls'])));
     }
 
     /**

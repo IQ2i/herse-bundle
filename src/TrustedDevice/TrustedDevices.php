@@ -14,9 +14,11 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\TrustedDevice;
 
 use IQ2i\HerseBundle\Entity\TrustedDevice;
+use IQ2i\HerseBundle\Event\TrustedDevicesRevokedEvent;
 use IQ2i\HerseBundle\User\UserReference;
 use IQ2i\HerseBundle\User\UserResolver;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Lists and revokes the trusted devices of a user. This is the only way for a project to remove devices:
@@ -34,6 +36,7 @@ final class TrustedDevices
         private readonly TrustedDeviceRepository $repository,
         private readonly DeviceCookies $cookies,
         private readonly RequestStack $requestStack,
+        private readonly ?EventDispatcherInterface $dispatcher = null,
     ) {
     }
 
@@ -91,7 +94,12 @@ final class TrustedDevices
             $ids[] = $device['id'];
         }
 
-        return $this->repository->deleteByIds($reference, $ids);
+        $count = $this->repository->deleteByIds($reference, $ids);
+        if ($count > 0) {
+            $this->dispatcher?->dispatch(new TrustedDevicesRevokedEvent($reference, $count));
+        }
+
+        return $count;
     }
 
     private function isCurrentToken(string $firewall, string $tokenHash): bool
