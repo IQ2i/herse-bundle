@@ -201,7 +201,7 @@ final class IQ2iHerseBundleTest extends TestCase
 
         $extension = $container->getDefinition(HerseExtension::class);
         self::assertTrue($extension->hasTag('twig.extension'));
-        self::assertEquals([new Reference(PasswordPolicyDescriber::class), new Reference('iq2i_herse.firewall_registry'), 'base.html.twig'], $extension->getArguments());
+        self::assertEquals([new Reference(PasswordPolicyDescriber::class), new Reference('iq2i_herse.firewall_registry'), 'base.html.twig', null], $extension->getArguments());
     }
 
     public function testTheEnrollmentOfAnAuthenticatorAppComesWithTheDeclaredFirewalls(): void
@@ -281,7 +281,7 @@ final class IQ2iHerseBundleTest extends TestCase
 
         self::assertFalse($container->hasDefinition('iq2i_herse.route_loader'));
         self::assertFalse($container->hasDefinition('iq2i_herse.firewall_registry'));
-        self::assertEquals([new Reference(PasswordPolicyDescriber::class), null, '@IQ2iHerse/layout.html.twig'], $container->getDefinition(HerseExtension::class)->getArguments());
+        self::assertEquals([new Reference(PasswordPolicyDescriber::class), null, '@IQ2iHerse/layout.html.twig', null], $container->getDefinition(HerseExtension::class)->getArguments());
     }
 
     /**

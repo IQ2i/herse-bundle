@@ -25,8 +25,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 final class FirewallRegistry
 {
     /**
-     * @param array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}> $firewalls
-     * @param bool                                                                                                $secondFactorRequired whether the users of the firewalls asking a second factor must have one
+     * @param array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool, theme?: string|null}> $firewalls
+     * @param bool                                                                                                                     $secondFactorRequired whether the users of the firewalls asking a second factor must have one
      */
     public function __construct(
         private readonly array $firewalls,
@@ -67,6 +67,16 @@ final class FirewallRegistry
         }
 
         return str_starts_with($home, '/') || null === $this->urls ? $home : $this->urls->generate($home);
+    }
+
+    /**
+     * @return string|null the directory of the templates replacing the ones of the bundle on the current firewall
+     */
+    public function theme(): ?string
+    {
+        $name = $this->current();
+
+        return null === $name ? null : $this->firewalls[$name]['theme'] ?? null;
     }
 
     /**

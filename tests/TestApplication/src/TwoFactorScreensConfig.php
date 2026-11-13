@@ -47,7 +47,7 @@ final class TwoFactorScreensConfig
         }
 
         AccountApplication::load($container, $herse + [
-            'firewalls' => ['admin' => ['path_prefix' => '/admin', 'layout' => 'admin_layout.html.twig'], 'main' => null],
+            'firewalls' => ['admin' => ['path_prefix' => '/admin', 'layout' => 'admin_layout.html.twig', 'theme' => 'herse_admin'], 'main' => null],
             'two_factor' => $twoFactor + ['method' => $method, 'throttling' => ['cache_pool' => 'herse_two_factor_throttling']],
         ], $firewalls, accountClass: $accountClass, otherUsers: $otherUsers);
 

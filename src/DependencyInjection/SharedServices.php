@@ -19,6 +19,7 @@ use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
 use IQ2i\HerseBundle\Routing\HerseRouteLoader;
 use IQ2i\HerseBundle\Security\FirewallRegistry;
 use IQ2i\HerseBundle\Twig\HerseExtension;
+use IQ2i\HerseBundle\TwoFactor\TwoFactorResetLink;
 use IQ2i\HerseBundle\User\UserResolver;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -73,7 +74,7 @@ final class SharedServices
     /**
      * The routes, the layout and the Twig functions of the screens of the bundle.
      *
-     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null}, trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, mixed>}} $config
+     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, theme: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null}, trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, mixed>}} $config
      */
     public static function loadUi(array $config, ContainerConfigurator $container): void
     {
@@ -107,6 +108,7 @@ final class SharedServices
                     $config['password_policy']['enabled'] ? new Reference(PasswordPolicyDescriber::class) : null,
                     [] !== $config['firewalls'] ? new Reference('iq2i_herse.firewall_registry') : null,
                     $config['ui']['layout'],
+                    new Reference(TwoFactorResetLink::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 ])
                 ->tag('twig.extension')
             ;

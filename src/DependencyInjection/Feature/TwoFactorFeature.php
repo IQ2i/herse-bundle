@@ -32,6 +32,7 @@ use IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface;
 use IQ2i\HerseBundle\TwoFactor\SecondFactorThrottler;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
+use IQ2i\HerseBundle\TwoFactor\TwoFactorResetLink;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorResetter;
 use IQ2i\HerseBundle\User\UserLoader;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
@@ -271,14 +272,21 @@ final class TwoFactorFeature
             ->public()
         ;
 
-        if (class_exists(Action::class)) {
-            $services->set(ResetTwoFactorAction::class)->args([
+        // Public: the projects link their user lists to the reset screen through it.
+        $services->set(TwoFactorResetLink::class)
+            ->args([
                 new Reference('iq2i_herse.firewall_registry'),
                 new Reference('iq2i_herse.user_resolver'),
+                new Reference('security.helper'),
                 new Reference('router'),
                 new Reference('request_stack'),
-                new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE),
-            ]);
+                $role,
+            ])
+            ->public()
+        ;
+
+        if (class_exists(Action::class)) {
+            $services->set(ResetTwoFactorAction::class)->args([new Reference(TwoFactorResetLink::class), new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE)]);
         }
     }
 

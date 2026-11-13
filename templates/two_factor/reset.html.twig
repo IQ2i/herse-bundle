@@ -1,7 +1,7 @@
-{% extends herse_layout() %}
+{% extends herse_layout('account') %}
 
-{% block title %}{{ 'Reset two-factor authentication'|trans({}, 'iq2i_herse') }}{% endblock %}
+{% block herse_title %}{{ 'Reset two-factor authentication'|trans({}, 'iq2i_herse') }}{% endblock %}
 
-{% block body %}
-    {{ include('@IQ2iHerse/two_factor/_reset.html.twig') }}
+{% block herse_content %}
+    {{ include(herse_template('two_factor/_reset.html.twig')) }}
 {% endblock %}

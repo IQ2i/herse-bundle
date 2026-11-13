@@ -141,6 +141,11 @@ final class IQ2iHerseBundle extends AbstractBundle
                             ->defaultNull()
                             ->cannotBeEmpty()
                         ->end()
+                        ->scalarNode('theme')
+                            ->info('Directory of templates replacing the ones of the bundle on this firewall, e.g. "herse/admin" or "@IQ2iHerse/bridge/sylius/admin". A template missing from it falls back on the bundle.')
+                            ->defaultNull()
+                            ->cannotBeEmpty()
+                        ->end()
                         ->booleanNode('login_throttling')
                             ->info('Require the firewall to use the login limiter of the bundle. Applies while login_throttling is enabled.')
                             ->defaultTrue()
@@ -206,7 +211,7 @@ final class IQ2iHerseBundle extends AbstractBundle
     /**
      * @param array{
      *     users: array<class-string, array{type: string, email: string, id: string, password: string, locale: string|null, plain_password?: array{property?: string|null, groups?: list<string>}}>,
-     *     firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, login_throttling: bool, two_factor: bool, verify: bool}>,
+     *     firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, theme: string|null, login_throttling: bool, two_factor: bool, verify: bool}>,
      *     ui: array{layout: string},
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool, hash_guard: bool, forms: array{auto: bool, help: bool}},

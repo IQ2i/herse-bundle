@@ -1,7 +1,7 @@
-{% extends herse_layout() %}
+{% extends herse_layout('account') %}
 
-{% block title %}{{ 'My devices'|trans({}, 'iq2i_herse') }}{% endblock %}
+{% block herse_title %}{{ 'My devices'|trans({}, 'iq2i_herse') }}{% endblock %}
 
-{% block body %}
-    {{ include('@IQ2iHerse/devices/_list.html.twig') }}
+{% block herse_content %}
+    {{ include(herse_template('devices/_list.html.twig')) }}
 {% endblock %}

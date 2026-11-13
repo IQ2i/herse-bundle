@@ -98,6 +98,9 @@ final class TwoFactorScreensTest extends TwoFactorKernelTestCase
         $html = (string) $form->getContent();
         self::assertSame(200, $form->getStatusCode());
         self::assertStringContainsString('<main data-layout="admin">', $html);
+        // The theme of the firewall replaces one block of the form, and nothing else.
+        self::assertStringContainsString('<p data-theme="admin">Administration</p>', $html);
+        self::assertStringNotContainsString('Enter the code we have just sent', $html);
         self::assertStringContainsString('<form action="/admin/2fa_check" method="post"', $html);
         self::assertStringContainsString('href="/admin/logout"', $html);
 

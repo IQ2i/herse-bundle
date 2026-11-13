@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\Tests\Twig;
 
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
+use IQ2i\HerseBundle\Tests\Security\FirewallRegistries;
 use IQ2i\HerseBundle\Twig\HerseExtension;
 use PHPUnit\Framework\TestCase;
 use Twig\Environment;
@@ -36,11 +37,26 @@ final class HerseExtensionTest extends TestCase
         (new HerseExtension(null, null, 'layout.html.twig'))->passwordPolicy();
     }
 
+    public function testTheTemplatesOfTheThemeOfTheFirewallComeFirst(): void
+    {
+        $themed = new HerseExtension(null, FirewallRegistries::create(['admin' => ['theme' => '@App/herse']], 'admin'), 'layout.html.twig');
+        $plain = new HerseExtension(null, FirewallRegistries::create(['admin' => []], 'admin'), 'layout.html.twig');
+
+        self::assertSame(['@App/herse/security.html.twig', '@IQ2iHerse/frame.html.twig'], $themed->frame('security'));
+        self::assertSame(['@App/herse/devices/_list.html.twig', '@IQ2iHerse/devices/_list.html.twig'], $themed->template('devices/_list.html.twig'));
+        self::assertSame(['@IQ2iHerse/frame.html.twig'], $plain->frame());
+        self::assertSame(['@IQ2iHerse/devices/_list.html.twig'], $plain->template('devices/_list.html.twig'));
+    }
+
     public function testTheScreensExtendTheConfiguredLayoutWithoutDeclaredFirewall(): void
     {
-        $twig = new Environment(new ArrayLoader(['layout.html.twig' => '<main>{% block body %}{% endblock %}</main>', 'page' => '{% extends herse_layout() %}{% block body %}page{% endblock %}']));
+        $twig = new Environment(new ArrayLoader([
+            'layout.html.twig' => '<title>{% block title %}{% endblock %}</title><main>{% block body %}{% endblock %}</main>',
+            '@IQ2iHerse/frame.html.twig' => (string) file_get_contents(\dirname(__DIR__, 2).'/templates/frame.html.twig'),
+            'page' => "{% extends herse_layout('security') %}{% block herse_title %}title{% endblock %}{% block herse_content %}page{% endblock %}",
+        ]));
         $twig->addExtension(new HerseExtension(null, null, 'layout.html.twig'));
 
-        self::assertSame('<main>page</main>', $twig->render('page'));
+        self::assertSame('<title>title</title><main>page</main>', $twig->render('page'));
     }
 }

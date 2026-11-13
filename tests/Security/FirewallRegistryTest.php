@@ -41,6 +41,13 @@ final class FirewallRegistryTest extends TestCase
         self::assertNull(FirewallRegistries::create(['admin' => []], 'admin')->layout());
     }
 
+    public function testAFirewallMayHaveAThemeReplacingTheTemplatesOfTheBundle(): void
+    {
+        self::assertSame('@Sylius/admin', FirewallRegistries::create(['admin' => ['theme' => '@Sylius/admin']], 'admin')->theme());
+        self::assertNull(FirewallRegistries::create(['admin' => []], 'admin')->theme());
+        self::assertNull(FirewallRegistries::create(['admin' => ['theme' => '@Sylius/admin']], null)->theme());
+    }
+
     public function testTheSecondFactorIsAskedOnTheFirewallsThatDidNotOptOut(): void
     {
         $firewalls = ['admin' => [], 'api' => ['two_factor' => false]];

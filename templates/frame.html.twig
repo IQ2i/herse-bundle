@@ -1,0 +1,9 @@
+{#
+    Places a screen of the bundle in the layout of the project: its title in the "title" block, its content in the
+    "body" block. A screen extends this template through herse_layout() and fills "herse_title" and "herse_content".
+#}
+{% extends herse_base_layout() %}
+
+{% block title %}{% block herse_title %}{% endblock %}{% endblock %}
+
+{% block body %}{% block herse_content %}{% endblock %}{% endblock %}

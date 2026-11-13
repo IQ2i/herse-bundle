@@ -42,7 +42,7 @@ final class FirewallRegistries
         }
         $container->set('security.firewall.map', new FirewallMap($container, ['context' => null]));
 
-        /** @var array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}> $declared */
+        /** @var array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool, theme?: string|null}> $declared */
         $declared = array_map(static fn (array $firewall): array => $firewall + ['path_prefix' => '', 'home' => null, 'layout' => null, 'two_factor' => true], $firewalls);
 
         return new FirewallRegistry(
