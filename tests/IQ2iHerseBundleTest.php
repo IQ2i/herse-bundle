@@ -481,6 +481,16 @@ final class IQ2iHerseBundleTest extends TestCase
         self::assertTrue($container->hasDefinition('iq2i_herse.mailer'));
     }
 
+    public function testTrustedDevicesCoverTheDeclaredFirewallsByDefault(): void
+    {
+        $container = $this->load(['firewalls' => ['admin' => null, 'main' => ['verify' => false]], 'trusted_devices' => true, 'mailer' => ['sender' => 'no-reply@example.com']]);
+
+        self::assertSame(
+            [['admin' => ['cookie_name' => 'herse_device_admin', 'lifetime' => '30 days'], 'main' => ['cookie_name' => 'herse_device_main', 'lifetime' => '30 days']]],
+            $container->getDefinition('iq2i_herse.trusted_devices.cookies')->getArguments(),
+        );
+    }
+
     public function testTrustedDevicesSettingsAreConfigurable(): void
     {
         $container = $this->load([
@@ -539,7 +549,7 @@ final class IQ2iHerseBundleTest extends TestCase
      */
     public static function provideInvalidTrustedDevices(): iterable
     {
-        yield 'no firewall' => [['trusted_devices' => true], 'iq2i_herse.trusted_devices.firewalls requires at least one firewall'];
+        yield 'no firewall' => [['trusted_devices' => true], 'iq2i_herse.trusted_devices requires at least one firewall'];
         yield 'invalid lifetime' => [['trusted_devices' => ['firewalls' => ['main' => ['lifetime' => 'forever']]]], 'is not a valid interval'];
         yield 'invalid cookie name' => [['trusted_devices' => ['firewalls' => ['main' => ['cookie_name' => 'a b;c']]]], 'is not a valid cookie name'];
         yield 'revocation without the notification' => [['trusted_devices' => ['firewalls' => ['main' => null], 'revoke_on_password_change' => true]], 'revoke_on_password_change requires iq2i_herse.password_change_notification'];

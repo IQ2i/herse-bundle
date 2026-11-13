@@ -21,7 +21,7 @@ iq2i_herse:
         sender: no-reply@example.com
     trusted_devices:
         enabled: true
-        firewalls:                       # required: the firewalls whose logins are watched
+        firewalls:                       # the firewalls whose logins are watched, iq2i_herse.firewalls by default
             main: ~                      # the cookie is "herse_device_main", and lasts 30 days
             admin:
                 cookie_name: admin_device

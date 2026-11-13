@@ -52,6 +52,8 @@ iq2i_herse:
 
 Look at the user entities (`getEmail()`, the plain password property, the Doctrine mapping of the hashed password) before writing the declaration, and copy the names from the code.
 
+Declare the firewalls to protect as well (`iq2i_herse.firewalls: { main: ~ }`, the names of `security.yaml`). The bundle never writes `security.yaml`, it checks it: the compilation fails with the exact lines to add when a declared firewall misses something an enabled feature relies on.
+
 ## 3. Enable a feature
 
 For each feature, in this order:
@@ -64,8 +66,8 @@ For each feature, in this order:
 What each feature asks of the project:
 
 - **`password_policy`**: needs `plain_password` on the user classes. DTOs, forms and commands use `#[PasswordPolicy]` (no argument) or `PasswordPolicyType`. Models that are not yours (Sylius ones) need a validation mapping file, see `docs/sylius.md`. `check_compromised` requires `symfony/http-client`.
-- **`login_throttling`**: one `login_throttling: { limiter: iq2i_herse.login_throttling.limiter }` line **per firewall** in `security.yaml`. Without it, nothing is throttled.
-- **`trusted_devices`**: `firewalls` is required (the firewalls whose logins are watched), `mailer.sender` too. It adds the table `iq2i_herse_trusted_device`: generate and run the migration with the tool of the project (`doctrine:migrations:diff`). Schedule `bin/console iq2i:herse:purge-trusted-devices` (daily, `--dry-run` counts only).
+- **`login_throttling`**: one `login_throttling: { limiter: iq2i_herse.login_throttling.limiter }` line **per firewall** in `security.yaml`. Without it, nothing is throttled: declare the firewalls in `iq2i_herse.firewalls`, and a missing line fails the compilation with the lines to add.
+- **`trusted_devices`**: watches the firewalls of `iq2i_herse.firewalls` (or its own `firewalls`), `mailer.sender` is required. It adds the table `iq2i_herse_trusted_device`: generate and run the migration with the tool of the project (`doctrine:migrations:diff`). Schedule `bin/console iq2i:herse:purge-trusted-devices` (daily, `--dry-run` counts only).
 - **`password_change_notification`**: needs Doctrine, the mailer and `mailer.sender`. No table. It covers every entry point, so remove a "password changed" email the project already sends, and wrap imports and fixtures in `PasswordChangeNotification::withoutNotification()`.
 - **`two_factor`**: `method` (`email` or `totp`) is required. The project adds `two_factor` and a `logout` path to the firewall, the `IS_AUTHENTICATED_2FA_IN_PROGRESS` access rule **before** the broader ones, the routes and the template of the code form, the scheb interface and fields on the user entity (and its migration), and the screen to enable it. Backup codes are not provided.
 - **Emails** (trusted devices, password change, email code): `iq2i_herse.mailer.sender` is required, and `framework.mailer` must be configured. Templates are overridden in `templates/bundles/IQ2iHerseBundle/email/`.

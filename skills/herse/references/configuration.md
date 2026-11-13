@@ -30,6 +30,11 @@ iq2i_herse:
                 property: ~
                 groups: [Default]           # validation groups of the constraint
 
+    firewalls:                              # by firewall name: their security configuration is checked at compilation
+        main:
+            login_throttling: true          # require the limiter of the bundle while login_throttling is enabled
+            verify: true                    # false disables every check of the firewall
+
     mailer:
         sender: ~                           # required as soon as a feature sending emails is enabled
         sender_name: ~
@@ -52,7 +57,7 @@ iq2i_herse:
 
     trusted_devices:
         enabled: false
-        firewalls:                          # by firewall name, required when enabled
+        firewalls:                          # by firewall name, the ones of iq2i_herse.firewalls by default
             main: ~
             admin:
                 cookie_name: ~              # herse_device_<firewall>
@@ -89,6 +94,13 @@ Intervals are relative date formats (`'1 minute'`, `'15 minutes'`, `'7 days'`); 
 - `password` must be a field mapped by Doctrine, otherwise `password_change_notification` throws a `LogicException` on the first update.
 - `plain_password` requires `password_policy` to be enabled, otherwise the configuration is rejected.
 
+## `firewalls`
+
+- The bundle never writes `security.yaml`. It checks what the security extension built from it, and the compilation fails with the lines to add when a declared firewall misses something a feature relies on.
+- With `login_throttling`: the firewall must use `iq2i_herse.login_throttling.limiter`, without the native `max_attempts` or `interval` next to it (Symfony ignores them once a limiter is set).
+- `login_throttling: false` leaves a firewall out of that check, `verify: false` out of every check.
+- They are the default of `trusted_devices.firewalls`.
+
 ## `mailer`
 
 Shared by the three emails: new device, password changed, two-factor code (email method). Needs `symfony/mailer`, `symfony/twig-bundle`, `symfony/translation` and `framework.mailer`. With Messenger routing the emails, the emails of the bundle follow. A sending error is logged and never fails a login or a password change.
@@ -105,7 +117,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 ## `login_throttling`
 
 - Three limits scoped to the firewall: `identifier_and_ip`, `ip` and, optionally, `identifier`. The identifier limit stops a distributed attack on one account but lets a third party lock that account for a while.
-- Plugged in per firewall: `login_throttling: { limiter: iq2i_herse.login_throttling.limiter }` in `security.yaml`. One service serves every firewall.
+- Plugged in per firewall: `login_throttling: { limiter: iq2i_herse.login_throttling.limiter }` in `security.yaml`. One service serves every firewall. Declare the firewalls in `iq2i_herse.firewalls` to have a missing line fail the compilation.
 - The IP is only right behind a proxy when `framework.trusted_proxies` is set. Use a shared `cache_pool` on several servers.
 - A successful login clears the identifier limits, never the IP one.
 - Needs `symfony/rate-limiter`.
@@ -113,7 +125,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 ## `trusted_devices`
 
 - Needs Doctrine ORM and DoctrineBundle, the mailer packages and `mailer.sender`. Entity `IQ2i\HerseBundle\Entity\TrustedDevice`, table `iq2i_herse_trusted_device`, default entity manager: generate a migration.
-- `firewalls` is required. Cookie `herse_device_<firewall>` (override with `cookie_name`: letters, digits, `_`, `.`, `-`), `HttpOnly`, `Secure`, `SameSite=Lax`. `lifetime` is the inactivity after which a device is forgotten.
+- `firewalls` defaults to the ones of `iq2i_herse.firewalls`; one firewall at least is required. Cookie `herse_device_<firewall>` (override with `cookie_name`: letters, digits, `_`, `.`, `-`), `HttpOnly`, `Secure`, `SameSite=Lax`. `lifetime` is the inactivity after which a device is forgotten.
 - `store_ip: false` keeps no IP (personal data). The raw User-Agent is never stored, only a label (`Firefox (macOS)`).
 - `notify_first_device: false` registers the first device of a user silently (useful at roll-out).
 - `notify_before_second_factor: true` warns as soon as the password is accepted from an unknown device (with `two_factor`).
@@ -148,6 +160,8 @@ The compilation fails with a message naming the fix:
 - `iq2i_herse.two_factor.trusted_devices requires iq2i_herse.trusted_devices to be enabled.`
 - `iq2i_herse.two_factor requires … Try running "composer require …"`, and the same for each feature missing a package.
 - `iq2i_herse.password_policy: max_length must be greater than or equal to min_length.`
+- `iq2i_herse.firewalls: the firewall "…" is not declared in the security configuration.`
+- `The firewall "…" does not use the login limiter of Herse.`, followed by the lines to add to `security.yaml`.
 
 ## Services and public API
 

@@ -17,6 +17,7 @@ use Symfony\Component\Security\Core\User\InMemoryUser;
 
 return static function (ContainerConfigurator $container): void {
     $container->extension('iq2i_herse', [
+        'firewalls' => ['main' => null],
         'login_throttling' => [
             'identifier_and_ip' => ['limit' => 3],
             'ip' => ['limit' => 6],

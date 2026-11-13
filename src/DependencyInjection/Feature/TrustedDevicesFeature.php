@@ -40,12 +40,14 @@ use Symfony\Component\Security\Http\Event\LoginSuccessEvent;
  */
 final class TrustedDevicesFeature
 {
+    private const DEFAULT_LIFETIME = '30 days';
+
     public static function configure(ArrayNodeDefinition $node): void
     {
         $children = $node->children();
 
         $firewall = $children->arrayNode('firewalls')
-            ->info('The firewalls whose logins register a device, by firewall name.')
+            ->info('The firewalls whose logins register a device, by firewall name. Every firewall of iq2i_herse.firewalls by default.')
             ->useAttributeAsKey('name')
             ->normalizeKeys(false)
             ->arrayPrototype()
@@ -64,7 +66,7 @@ final class TrustedDevicesFeature
             ->end()
             ->scalarNode('lifetime')
                 ->info('Inactivity after which the device is forgotten, as a relative date format (e.g. "30 days").')
-                ->defaultValue('30 days')
+                ->defaultValue(self::DEFAULT_LIFETIME)
                 ->cannotBeEmpty()
                 ->validate()
                     ->ifTrue(static fn (string $value): bool => !Support::isValidInterval($value))
@@ -94,13 +96,16 @@ final class TrustedDevicesFeature
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool}, password_change_notification: array{enabled: bool}} $config
      */
     public static function load(array $config, ContainerConfigurator $container): void
     {
         $devices = $config['trusted_devices'];
         if ([] === $devices['firewalls']) {
-            throw new InvalidConfigurationException('iq2i_herse.trusted_devices.firewalls requires at least one firewall.');
+            $devices['firewalls'] = array_fill_keys(array_keys($config['firewalls']), ['cookie_name' => null, 'lifetime' => self::DEFAULT_LIFETIME]);
+        }
+        if ([] === $devices['firewalls']) {
+            throw new InvalidConfigurationException('iq2i_herse.trusted_devices requires at least one firewall, declared in iq2i_herse.firewalls or in iq2i_herse.trusted_devices.firewalls.');
         }
         if ($devices['revoke_on_password_change'] && !$config['password_change_notification']['enabled']) {
             throw new InvalidConfigurationException('iq2i_herse.trusted_devices.revoke_on_password_change requires iq2i_herse.password_change_notification to be enabled.');

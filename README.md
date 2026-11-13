@@ -50,8 +50,14 @@ iq2i_herse:
         App\Entity\ShopUser:
             type: shop
             email: customer.email
+    firewalls:                   # the firewalls the features protect
+        admin: ~
+        main: ~
     password_policy: true        # or { enabled: true }
 ```
+
+The bundle never writes your security configuration. It checks it instead: when a declared firewall misses a line
+a feature relies on, the container compilation fails with the lines to add to `security.yaml`.
 
 The other options are described in the guide of each feature.
 

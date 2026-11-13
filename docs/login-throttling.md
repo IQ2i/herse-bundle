@@ -24,7 +24,8 @@ iq2i_herse:
         lock_factory: auto                 # lock.factory when it exists, null to disable
 ```
 
-Then add one line per firewall in `security.yaml`, as the bundle cannot complete the firewall configuration itself:
+Then add one line per firewall in `security.yaml`. The bundle never writes the security configuration of your
+project: it stays readable in one place.
 
 ```yaml
 # config/packages/security.yaml
@@ -39,6 +40,22 @@ security:
 ```
 
 One service serves every firewall: the cache keys include the name of the firewall.
+
+Declare these firewalls to the bundle, so that a forgotten line fails the container compilation instead of leaving
+a firewall unprotected:
+
+```yaml
+# config/packages/iq2i_herse.yaml
+iq2i_herse:
+    firewalls:
+        admin: ~
+        shop: ~
+        api: { login_throttling: false }   # declared for another feature, not throttled
+```
+
+The compilation fails, with the lines to add, when a declared firewall does not exist, does not use the limiter of
+the bundle, or keeps the native `max_attempts` or `interval` options next to it (Symfony ignores them as soon as a
+limiter is set). `verify: false` disables the checks of a firewall.
 
 ## Points of attention
 

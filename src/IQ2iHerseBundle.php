@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle;
 
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
+use IQ2i\HerseBundle\DependencyInjection\Compiler\SecurityConfigurationPass;
 use IQ2i\HerseBundle\DependencyInjection\Feature\LoginThrottlingFeature;
 use IQ2i\HerseBundle\DependencyInjection\Feature\PasswordChangeNotificationFeature;
 use IQ2i\HerseBundle\DependencyInjection\Feature\PasswordPolicyFeature;
@@ -113,6 +114,28 @@ final class IQ2iHerseBundle extends AbstractBundle
         ;
 
         $children
+            ->arrayNode('firewalls')
+                ->info('The firewalls the bundle protects, by firewall name. Their security configuration is checked when the container is built.')
+                ->useAttributeAsKey('name')
+                ->normalizeKeys(false)
+                ->arrayPrototype()
+                    ->treatNullLike([])
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('login_throttling')
+                            ->info('Require the firewall to use the login limiter of the bundle. Applies while login_throttling is enabled.')
+                            ->defaultTrue()
+                        ->end()
+                        ->booleanNode('verify')
+                            ->info('Check the security configuration of the firewall. Disable it for a setup the checks do not understand.')
+                            ->defaultTrue()
+                        ->end()
+                    ->end()
+                ->end()
+            ->end()
+        ;
+
+        $children
             ->arrayNode('mailer')
                 ->info('Shared by every email of the bundle.')
                 ->addDefaultsIfNotSet()
@@ -140,11 +163,13 @@ final class IQ2iHerseBundle extends AbstractBundle
         parent::build($container);
 
         $container->addCompilerPass(new PasswordPolicyLoaderPass());
+        $container->addCompilerPass(new SecurityConfigurationPass());
     }
 
     /**
      * @param array{
      *     users: array<class-string, array{type: string, email: string, id: string, password: string, locale: string|null, plain_password?: array{property?: string|null, groups?: list<string>}}>,
+     *     firewalls: array<string, array{login_throttling: bool, verify: bool}>,
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
@@ -156,6 +181,7 @@ final class IQ2iHerseBundle extends AbstractBundle
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
         $builder->setParameter('iq2i_herse.users', $config['users']);
+        $builder->setParameter('iq2i_herse.firewalls', $config['firewalls']);
 
         $features = [];
         foreach (self::FEATURES as $feature) {
