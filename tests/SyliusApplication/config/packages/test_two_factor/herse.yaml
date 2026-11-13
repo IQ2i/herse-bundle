@@ -1,4 +1,8 @@
 iq2i_herse:
+    # The second factor of this environment keeps routes of the project, as written before the bundle provided them.
+    firewalls:
+        admin: { two_factor: false }
+        shop: { two_factor: false }
     two_factor:
         enabled: true
         method: email

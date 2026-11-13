@@ -32,8 +32,14 @@ iq2i_herse:
 
     firewalls:                              # by firewall name: their security configuration is checked at compilation
         main:
+            path_prefix: ''                 # prefix of the routes of the bundle on the firewall, e.g. /admin
+            layout: ~                       # template the screens extend on this firewall, ui.layout otherwise
             login_throttling: true          # require the limiter of the bundle while login_throttling is enabled
+            two_factor: true                # generate the second factor routes and check the firewall while two_factor is enabled
             verify: true                    # false disables every check of the firewall
+
+    ui:
+        layout: '@IQ2iHerse/layout.html.twig'   # template the screens extend, with a "body" block
 
     mailer:
         sender: ~                           # required as soon as a feature sending emails is enabled
@@ -102,7 +108,9 @@ Intervals are relative date formats (`'1 minute'`, `'15 minutes'`, `'7 days'`); 
 
 - The bundle never writes `security.yaml`. It checks what the security extension built from it, and the compilation fails with the lines to add when a declared firewall misses something a feature relies on.
 - With `login_throttling`: the firewall must use `iq2i_herse.login_throttling.limiter`, without the native `max_attempts` or `interval` next to it (Symfony ignores them once a limiter is set).
-- `login_throttling: false` leaves a firewall out of that check, `verify: false` out of every check.
+- With `two_factor`: the firewall must have `two_factor` with `auth_form_path: iq2i_herse_<firewall>_two_factor_form`, `check_path: iq2i_herse_<firewall>_two_factor_check` and `enable_csrf: true`, a `logout`, a pattern covering `<path_prefix>/2fa`, and no broader `access_control` rule before `{ path: ^<path_prefix>/2fa, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }`.
+- The routes are imported with `{ resource: ., type: iq2i_herse }` in `config/routes/`: per firewall, `iq2i_herse_<firewall>_two_factor_form` (`<path_prefix>/2fa`) and `iq2i_herse_<firewall>_two_factor_check` (`<path_prefix>/2fa_check`).
+- `login_throttling: false` or `two_factor: false` leaves a firewall out of a check, `verify: false` out of every check.
 - They are the default of `trusted_devices.firewalls`.
 
 ## `mailer`
@@ -150,8 +158,11 @@ Shared by the three emails: new device, password changed, two-factor code (email
 ## `two_factor`
 
 - Bridge to `scheb/2fa-bundle` (its bundle must be registered in `config/bundles.php`). Packages: `scheb/2fa-email` or `scheb/2fa-totp` according to `method`, `scheb/2fa-trusted-device` with `trusted_devices: true`, `symfony/rate-limiter` for the throttling.
-- Defaults injected under `scheb_two_factor`, which the project configuration always overrides: email code of 6 digits sent by the bundle; TOTP issuer `mailer.app_name`; trusted device manager of the bundle.
-- The email code goes to `getEmailAuthRecipient()` of the user class, not to the `email` property path.
+- Defaults injected under `scheb_two_factor`, which the project configuration always overrides: email code of 6 digits sent by the bundle; TOTP issuer `mailer.app_name`; code form `@IQ2iHerse/two_factor/form.html.twig`; trusted device manager of the bundle. No `scheb_2fa.yaml` is needed.
+- User entity: `implements Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface` + `use IQ2i\HerseBundle\TwoFactor\Model\EmailTwoFactorTrait` (column `email_auth_code`, every user has the second factor), or `implements IQ2i\HerseBundle\TwoFactor\Model\TotpTwoFactorInterface` + `use TotpTwoFactorTrait` (column `totp_secret`, enabled once a secret is set). Then a migration.
+- The email code goes to `getEmailAuthRecipient()` of the user class, or to the `email` property path when it is empty (the trait).
+- Code form: extends `ui.layout` (or the `layout` of the firewall), which needs a `body` block. Override or embed `two_factor/_form.html.twig` in `templates/bundles/IQ2iHerseBundle/` to change the markup.
+- `security.yaml` stays written by the project and is checked, see `firewalls`.
 - `trusted_devices: true` requires the `trusted_devices` feature, with the firewall watched there. The cookie and lifetime options of scheb then have no effect; `trusted_lifetime` counts from the verification and is not extended by logins.
 - `throttling`: wrong second factors per user and firewall, whatever the IP. `throttling: false` removes it, only when the project brings its own. The login throttling cannot replace it.
 - `enabled`, `method` and `trusted_devices` must be literal values, not environment variables.

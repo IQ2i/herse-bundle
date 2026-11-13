@@ -139,6 +139,18 @@ abstract class TwoFactorKernelTestCase extends DoctrineKernelTestCase
     }
 
     /**
+     * The CSRF token a form of the bundle carries.
+     */
+    protected function csrfToken(string $html, string $field = '_csrf_token'): string
+    {
+        if (1 !== preg_match('/name="'.preg_quote($field, '/').'" value="([^"]+)"/', $html, $matches)) {
+            self::fail('A form with a CSRF token was expected.');
+        }
+
+        return $matches[1];
+    }
+
+    /**
      * The browser leaves and comes back: the device cookie stays, the session is gone.
      */
     protected function closeSession(): void

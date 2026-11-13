@@ -45,8 +45,9 @@ final class AuthCodeMailer implements AuthCodeMailerInterface
             return;
         }
 
+        // An entity that names no recipient, as with EmailTwoFactorTrait, gets the address declared for its class.
         $recipient = $user->getEmailAuthRecipient();
-        $email = $this->mailer->create(self::TEMPLATE, self::SUBJECT, '' === $recipient ? null : $recipient, $this->users->locale($user), ['code' => $code]);
+        $email = $this->mailer->create(self::TEMPLATE, self::SUBJECT, '' === $recipient ? $this->users->email($user) : $recipient, $this->users->locale($user), ['code' => $code]);
         if (null !== $email) {
             $this->mailer->send($email);
         }

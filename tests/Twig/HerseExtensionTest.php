@@ -24,8 +24,23 @@ final class HerseExtensionTest extends TestCase
     public function testThePasswordPolicyIsListedInATemplate(): void
     {
         $twig = new Environment(new ArrayLoader(['help' => '{% for rule in herse_password_policy() %}[{{ rule }}]{% endfor %}']));
-        $twig->addExtension(new HerseExtension(new PasswordPolicyDescriber(10, 0)));
+        $twig->addExtension(new HerseExtension(new PasswordPolicyDescriber(10, 0), null, 'layout.html.twig'));
 
         self::assertSame('[at least 10 characters]', $twig->render('help'));
+    }
+
+    public function testThePasswordPolicyIsNotAvailableWhileTheFeatureIsDisabled(): void
+    {
+        $this->expectExceptionMessage('herse_password_policy() requires iq2i_herse.password_policy to be enabled.');
+
+        (new HerseExtension(null, null, 'layout.html.twig'))->passwordPolicy();
+    }
+
+    public function testTheScreensExtendTheConfiguredLayoutWithoutDeclaredFirewall(): void
+    {
+        $twig = new Environment(new ArrayLoader(['layout.html.twig' => '<main>{% block body %}{% endblock %}</main>', 'page' => '{% extends herse_layout() %}{% block body %}page{% endblock %}']));
+        $twig->addExtension(new HerseExtension(null, null, 'layout.html.twig'));
+
+        self::assertSame('<main>page</main>', $twig->render('page'));
     }
 }

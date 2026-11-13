@@ -82,6 +82,34 @@
                 <source>at least %count% of these: %types%</source>
                 <target>au moins %count% de ces éléments : %types%</target>
             </trans-unit>
+            <trans-unit id="two_factor.title">
+                <source>Two-factor authentication</source>
+                <target>Double authentification</target>
+            </trans-unit>
+            <trans-unit id="two_factor.intro_email">
+                <source>Enter the code we have just sent to your email address.</source>
+                <target>Saisissez le code que nous venons d'envoyer à votre adresse e-mail.</target>
+            </trans-unit>
+            <trans-unit id="two_factor.intro_totp">
+                <source>Enter the code shown by your authenticator app.</source>
+                <target>Saisissez le code affiché par votre application d'authentification.</target>
+            </trans-unit>
+            <trans-unit id="two_factor.code">
+                <source>Code</source>
+                <target>Code</target>
+            </trans-unit>
+            <trans-unit id="two_factor.trusted">
+                <source>Trust this device</source>
+                <target>Faire confiance à cet appareil</target>
+            </trans-unit>
+            <trans-unit id="two_factor.verify">
+                <source>Verify</source>
+                <target>Valider</target>
+            </trans-unit>
+            <trans-unit id="two_factor.cancel">
+                <source>Cancel</source>
+                <target>Annuler</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

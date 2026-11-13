@@ -60,7 +60,7 @@ For each feature, in this order:
 
 1. Read its guide.
 2. Install its packages. Enabling a feature without one of them fails the container compilation **with the exact `composer require` command to run**: run `bin/console cache:clear` and use that command rather than guessing the packages.
-3. Add its configuration, then the part that belongs to the project (see below): bundles cannot complete `security.yaml`, the user entities or the routes themselves.
+3. Add its configuration, then the part that belongs to the project (see below): the bundle never writes `security.yaml` nor the user entities.
 4. Run the check described at the end of its guide.
 
 What each feature asks of the project:
@@ -69,7 +69,7 @@ What each feature asks of the project:
 - **`login_throttling`**: one `login_throttling: { limiter: iq2i_herse.login_throttling.limiter }` line **per firewall** in `security.yaml`. Without it, nothing is throttled: declare the firewalls in `iq2i_herse.firewalls`, and a missing line fails the compilation with the lines to add.
 - **`trusted_devices`**: watches the firewalls of `iq2i_herse.firewalls` (or its own `firewalls`), `mailer.sender` is required. It adds the table `iq2i_herse_trusted_device`: generate and run the migration with the tool of the project (`doctrine:migrations:diff`). Schedule `bin/console iq2i:herse:purge-trusted-devices` (daily, `--dry-run` counts only).
 - **`password_change_notification`**: needs Doctrine, the mailer and `mailer.sender`. No table. It covers every entry point, so remove a "password changed" email the project already sends, and wrap imports and fixtures in `PasswordChangeNotification::withoutNotification()`.
-- **`two_factor`**: `method` (`email` or `totp`) is required. The project adds `two_factor` and a `logout` path to the firewall, the `IS_AUTHENTICATED_2FA_IN_PROGRESS` access rule **before** the broader ones, the routes and the template of the code form, the scheb interface and fields on the user entity (and its migration), and the screen to enable it. Backup codes are not provided.
+- **`two_factor`**: `method` (`email` or `totp`) is required. Declare the firewalls (`iq2i_herse.firewalls`, with `path_prefix` for a firewall under a prefix), import the routes (`{ resource: ., type: iq2i_herse }`), add the trait of the method to the user entity (`EmailTwoFactorTrait` or `TotpTwoFactorTrait`, then a migration), and write the `two_factor` block of the firewall and the `IS_AUTHENTICATED_2FA_IN_PROGRESS` access rule in `security.yaml`: the compilation error gives the exact lines. Do not write routes, a `scheb_2fa.yaml` or a code form template: set `ui.layout` to the base template of the project instead. With TOTP, the project still builds the screen enrolling the authenticator app. Backup codes are not provided.
 - **Emails** (trusted devices, password change, email code): `iq2i_herse.mailer.sender` is required, and `framework.mailer` must be configured. Templates are overridden in `templates/bundles/IQ2iHerseBundle/email/`.
 
 `enabled`, `two_factor.method` and `two_factor.trusted_devices` must be **literal values**, not environment variables: they are read before the container resolves them.

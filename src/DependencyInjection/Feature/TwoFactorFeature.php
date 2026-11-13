@@ -41,6 +41,8 @@ use Symfony\Component\RateLimiter\Storage\CacheStorage;
  */
 final class TwoFactorFeature
 {
+    private const FORM_TEMPLATE = '@IQ2iHerse/two_factor/form.html.twig';
+
     public static function configure(ArrayNodeDefinition $node): void
     {
         $node
@@ -167,13 +169,13 @@ final class TwoFactorFeature
 
         $defaults = [];
         if ('email' === $method) {
-            $defaults['email'] = ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6];
+            $defaults['email'] = ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6, 'template' => self::FORM_TEMPLATE];
         } else {
             $appName = null;
             foreach ($configs as $config) {
                 $appName = \is_array($config['mailer'] ?? null) ? ($config['mailer']['app_name'] ?? $appName) : $appName;
             }
-            $defaults['totp'] = ['enabled' => true] + (\is_string($appName) ? ['issuer' => $appName] : []);
+            $defaults['totp'] = ['enabled' => true, 'template' => self::FORM_TEMPLATE] + (\is_string($appName) ? ['issuer' => $appName] : []);
         }
 
         if ($bridge) {

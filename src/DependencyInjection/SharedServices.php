@@ -14,6 +14,10 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\DependencyInjection;
 
 use IQ2i\HerseBundle\Mailer\Mailer;
+use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
+use IQ2i\HerseBundle\Routing\HerseRouteLoader;
+use IQ2i\HerseBundle\Security\FirewallRegistry;
+use IQ2i\HerseBundle\Twig\HerseExtension;
 use IQ2i\HerseBundle\User\UserResolver;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -21,11 +25,13 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Translation\Translator;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Twig\Extension\AbstractExtension;
 
 /**
- * The services shared by several features: the emails and the user resolver.
+ * The services shared by several features: the emails, the user resolver and the screens.
  *
  * @internal
  */
@@ -60,6 +66,35 @@ final class SharedServices
     public static function loadUserResolver(array $config, ContainerConfigurator $container): void
     {
         $container->services()->set('iq2i_herse.user_resolver', UserResolver::class)->args([$config['users'], new Reference('property_accessor')]);
+    }
+
+    /**
+     * The routes, the layout and the Twig functions of the screens of the bundle.
+     *
+     * @param array{firewalls: array<string, array{path_prefix: string, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool}} $config
+     */
+    public static function loadUi(array $config, ContainerConfigurator $container): void
+    {
+        $services = $container->services();
+
+        if ([] !== $config['firewalls']) {
+            $services->set('iq2i_herse.firewall_registry', FirewallRegistry::class)->args([$config['firewalls'], new Reference('security.helper'), new Reference('request_stack')]);
+
+            if (class_exists(RouteCollection::class)) {
+                $services->set('iq2i_herse.route_loader', HerseRouteLoader::class)->args([$config['firewalls'], $config['two_factor']['enabled']])->tag('routing.loader');
+            }
+        }
+
+        if (class_exists(AbstractExtension::class) && ($config['password_policy']['enabled'] || $config['two_factor']['enabled'])) {
+            $services->set(HerseExtension::class)
+                ->args([
+                    $config['password_policy']['enabled'] ? new Reference(PasswordPolicyDescriber::class) : null,
+                    [] !== $config['firewalls'] ? new Reference('iq2i_herse.firewall_registry') : null,
+                    $config['ui']['layout'],
+                ])
+                ->tag('twig.extension')
+            ;
+        }
     }
 
     /**

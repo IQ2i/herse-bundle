@@ -21,7 +21,6 @@ use IQ2i\HerseBundle\PasswordPolicy\GuardedUserPasswordHasher;
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyChecker;
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyGuard;
-use IQ2i\HerseBundle\Twig\HerseExtension;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicyValidator;
 use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
@@ -35,7 +34,6 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
-use Twig\Extension\AbstractExtension;
 
 /**
  * The password policy: the validator, its automatic mapping on the user classes and the form type.
@@ -128,10 +126,6 @@ final class PasswordPolicyFeature
 
         if (class_exists(Command::class)) {
             $services->set(PasswordQuestionValidator::class)->args([new Reference(PasswordPolicyChecker::class)])->public();
-        }
-
-        if (class_exists(AbstractExtension::class)) {
-            $services->set(HerseExtension::class)->args([new Reference(PasswordPolicyDescriber::class)])->tag('twig.extension');
         }
 
         if (ContainerBuilder::willBeAvailable('symfony/form', AbstractType::class, ['iq2i/herse-bundle'])) {

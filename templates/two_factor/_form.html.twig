@@ -1,0 +1,46 @@
+{# The variables are the ones scheb gives to the template of the second factor form. #}
+{% block herse_two_factor %}
+    <form action="{{ checkPathUrl ? checkPathUrl : path(checkPathRoute) }}" method="post" class="herse-two-factor">
+        {% block herse_two_factor_intro %}
+            <p>
+                {% if twoFactorProvider == 'email' %}
+                    {{ 'Enter the code we have just sent to your email address.'|trans({}, 'iq2i_herse') }}
+                {% else %}
+                    {{ 'Enter the code shown by your authenticator app.'|trans({}, 'iq2i_herse') }}
+                {% endif %}
+            </p>
+        {% endblock %}
+
+        {% block herse_two_factor_error %}
+            {% if authenticationError %}
+                <p role="alert" class="herse-error">{{ authenticationError|trans(authenticationErrorData, 'SchebTwoFactorBundle') }}</p>
+            {% endif %}
+        {% endblock %}
+
+        {% block herse_two_factor_code %}
+            <p>
+                <label for="_auth_code">{{ 'Code'|trans({}, 'iq2i_herse') }}</label>
+                <input id="_auth_code" type="text" name="{{ authCodeParameterName }}" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required autofocus>
+            </p>
+        {% endblock %}
+
+        {% block herse_two_factor_trusted %}
+            {% if displayTrustedOption %}
+                <p>
+                    <label for="_trusted"><input id="_trusted" type="checkbox" name="{{ trustedParameterName }}"> {{ 'Trust this device'|trans({}, 'iq2i_herse') }}</label>
+                </p>
+            {% endif %}
+        {% endblock %}
+
+        {% if isCsrfProtectionEnabled %}
+            <input type="hidden" name="{{ csrfParameterName }}" value="{{ csrf_token(csrfTokenId) }}">
+        {% endif %}
+
+        {% block herse_two_factor_actions %}
+            <p>
+                <button type="submit">{{ 'Verify'|trans({}, 'iq2i_herse') }}</button>
+                <a href="{{ logoutPath }}">{{ 'Cancel'|trans({}, 'iq2i_herse') }}</a>
+            </p>
+        {% endblock %}
+    </form>
+{% endblock %}

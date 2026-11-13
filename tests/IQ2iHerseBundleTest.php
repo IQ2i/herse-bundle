@@ -28,6 +28,8 @@ use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyChecker;
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyDescriber;
 use IQ2i\HerseBundle\PasswordPolicy\PasswordPolicyGuard;
 use IQ2i\HerseBundle\RateLimiter\LoginRateLimiter;
+use IQ2i\HerseBundle\Routing\HerseRouteLoader;
+use IQ2i\HerseBundle\Security\FirewallRegistry;
 use IQ2i\HerseBundle\Tests\TestApplication\ChildUser;
 use IQ2i\HerseBundle\Tests\TestApplication\Kernel;
 use IQ2i\HerseBundle\Tests\TestApplication\User;
@@ -173,7 +175,56 @@ final class IQ2iHerseBundleTest extends TestCase
             self::assertTrue($container->getDefinition($service)->isPublic());
         }
         self::assertSame([12, 4], \array_slice($container->getDefinition(PasswordPolicyDescriber::class)->getArguments(), 0, 2));
-        self::assertTrue($container->getDefinition(HerseExtension::class)->hasTag('twig.extension'));
+    }
+
+    public function testTheDeclaredFirewallsGetTheirRoutesAndTheirLayout(): void
+    {
+        $container = $this->load([
+            'firewalls' => ['admin' => ['path_prefix' => '/admin', 'layout' => 'admin.html.twig', 'verify' => false], 'main' => ['verify' => false]],
+            'ui' => ['layout' => 'base.html.twig'],
+            'password_policy' => true,
+        ]);
+
+        $loader = $container->getDefinition('iq2i_herse.route_loader');
+        self::assertTrue($loader->hasTag('routing.loader'));
+        self::assertFalse($loader->getArgument(1));
+        self::assertSame(HerseRouteLoader::class, $loader->getClass());
+        self::assertSame(FirewallRegistry::class, $container->getDefinition('iq2i_herse.firewall_registry')->getClass());
+
+        $extension = $container->getDefinition(HerseExtension::class);
+        self::assertTrue($extension->hasTag('twig.extension'));
+        self::assertEquals([new Reference(PasswordPolicyDescriber::class), new Reference('iq2i_herse.firewall_registry'), 'base.html.twig'], $extension->getArguments());
+    }
+
+    public function testNoScreenServiceIsDeclaredWithoutDeclaredFirewall(): void
+    {
+        $container = $this->load(['password_policy' => true]);
+
+        self::assertFalse($container->hasDefinition('iq2i_herse.route_loader'));
+        self::assertFalse($container->hasDefinition('iq2i_herse.firewall_registry'));
+        self::assertEquals([new Reference(PasswordPolicyDescriber::class), null, '@IQ2iHerse/layout.html.twig'], $container->getDefinition(HerseExtension::class)->getArguments());
+    }
+
+    /**
+     * @param array<string, mixed> $firewall
+     */
+    #[DataProvider('provideInvalidFirewalls')]
+    public function testAnInvalidFirewallIsRejected(array $firewall, string $message): void
+    {
+        $this->expectExceptionMessage($message);
+
+        $this->load(['firewalls' => ['main' => $firewall]]);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function provideInvalidFirewalls(): iterable
+    {
+        yield 'prefix without leading slash' => [['path_prefix' => 'admin'], 'is not a valid path prefix'];
+        yield 'prefix with a trailing slash' => [['path_prefix' => '/admin/'], 'is not a valid path prefix'];
+        yield 'prefix that is a pattern' => [['path_prefix' => '^/admin'], 'is not a valid path prefix'];
+        yield 'empty layout' => [['layout' => ''], 'iq2i_herse.firewalls.main.layout'];
     }
 
     public function testTheHasherOfTheProjectIsGuardedByDefault(): void
@@ -863,15 +914,16 @@ final class IQ2iHerseBundleTest extends TestCase
      */
     public static function provideTheSchebDefaults(): iterable
     {
-        $email = ['email' => ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6]];
+        $email = ['email' => ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6, 'template' => '@IQ2iHerse/two_factor/form.html.twig']];
+        $totp = ['enabled' => true, 'template' => '@IQ2iHerse/two_factor/form.html.twig'];
 
         yield 'email' => [[['two_factor' => ['method' => 'email']]], $email];
         yield 'email enabled by its method only' => [[['two_factor' => ['enabled' => true, 'method' => 'email']]], $email];
-        yield 'totp without application name' => [[['two_factor' => ['method' => 'totp']]], ['totp' => ['enabled' => true]]];
-        yield 'totp with the application name as issuer' => [[['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => ['enabled' => true, 'issuer' => 'Acme']]];
-        yield 'the last application name wins' => [[['mailer' => ['app_name' => 'Old']], ['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => ['enabled' => true, 'issuer' => 'Acme']]];
+        yield 'totp without application name' => [[['two_factor' => ['method' => 'totp']]], ['totp' => $totp]];
+        yield 'totp with the application name as issuer' => [[['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']]];
+        yield 'the last application name wins' => [[['mailer' => ['app_name' => 'Old']], ['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']]];
         yield 'with the device bridge' => [[['two_factor' => ['method' => 'email', 'trusted_devices' => true]]], $email + ['trusted_device' => ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager']]];
-        yield 'the method of the last configuration wins' => [[['two_factor' => ['method' => 'email']], ['two_factor' => ['method' => 'totp']]], ['totp' => ['enabled' => true]]];
+        yield 'the method of the last configuration wins' => [[['two_factor' => ['method' => 'email']], ['two_factor' => ['method' => 'totp']]], ['totp' => $totp]];
         yield 'disabled' => [[['two_factor' => false]], []];
         yield 'disabled by a later configuration' => [[['two_factor' => ['method' => 'email']], ['two_factor' => false]], []];
         yield 'no method' => [[['two_factor' => true]], []];

@@ -43,12 +43,14 @@ are prepared before the container resolves them.
 
 - **Defaults for scheb**: injected according to the method, under your own `scheb_two_factor` configuration which
   always wins. `email`: the code is sent by the bundle and has 6 digits. `totp`: the issuer is `mailer.app_name`.
-  `trusted_devices`: the trusted device manager of scheb is the one of the bundle.
+  Both: the code form is the one of the bundle. `trusted_devices`: the trusted device manager of scheb is the one of
+  the bundle. No `scheb_2fa.yaml` is needed.
+- **Routes, code form and entity traits**: see below.
 - **Email method**: the code is sent with the email service of the bundle (template
   `@IQ2iHerse/email/two_factor_code.html.twig`, sender and translations of the [emails](emails.md)) to the address
-  returned by `getEmailAuthRecipient()` of your user class, not to the `email` property path of `users`. A failure is
-  logged and never breaks the login. Add `prepare_on_login: true` to the `two_factor` firewall to send the code as
-  soon as the password is accepted.
+  returned by `getEmailAuthRecipient()` of your user class, or, when it returns an empty string as the trait of the
+  bundle does, to the `email` property path of `users`. A failure is logged and never breaks the login. Add
+  `prepare_on_login: true` to the `two_factor` firewall to send the code as soon as the password is accepted.
 - **Trusted devices**: with `trusted_devices: true`, ticking the "trust this device" box of the code form (the
   `_trusted` parameter of scheb) makes the device of the [registry](trusted-devices.md) *verified*. A verified device
   skips the second factor for `trusted_lifetime`, counted from the verification: unlike the expiration of the device,
@@ -76,31 +78,119 @@ user object, the firewall and the IP, never the code.
 
 ## What your project does
 
-1. Add `two_factor` to the firewall, a logout path (scheb builds the logout URL of the form from it) and the access
-   control rules, in `security.yaml`. The rule of the code form must come before the broader ones:
+Four short steps. The routes, the code form and the entity methods are provided; `security.yaml` stays yours, and the
+bundle checks it.
+
+1. Declare the firewalls asking for the second factor, and import the routes of the bundle:
+
+```yaml
+# config/packages/iq2i_herse.yaml
+iq2i_herse:
+    firewalls:
+        main: ~
+        admin:
+            path_prefix: /admin              # must match the pattern of the firewall
+            layout: admin/base.html.twig     # optional, see "The code form"
+```
+
+```yaml
+# config/routes/iq2i_herse.yaml
+iq2i_herse:
+    resource: .
+    type: iq2i_herse
+```
+
+Each firewall gets `iq2i_herse_<firewall>_two_factor_form` (`<path_prefix>/2fa`) and
+`iq2i_herse_<firewall>_two_factor_check` (`<path_prefix>/2fa_check`).
+
+2. Point the firewall to these routes in `security.yaml`:
 
 ```yaml
 security:
     firewalls:
-        main:
+        admin:
             logout:
-                path: /logout
+                path: /admin/logout
             two_factor:
-                auth_form_path: two_factor_login
-                check_path: two_factor_check
-                prepare_on_login: true
+                auth_form_path: iq2i_herse_admin_two_factor_form
+                check_path: iq2i_herse_admin_two_factor_check
+                enable_csrf: true
+                prepare_on_login: true       # email method: send the code as soon as the password is accepted
     access_control:
-        - { path: ^/2fa, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
+        # Before the rules that match the same paths.
+        - { path: ^/admin/2fa, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
 ```
 
-2. Make your user class implement the interface of the method (`Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface`
-   or `Scheb\TwoFactorBundle\Model\Totp\TwoFactorInterface`), with its fields, and generate the migration.
-3. Declare the routes of the code form and of its check path (`two_factor_login` and `two_factor_check` above).
-4. Provide the template of the code form (`scheb_two_factor.email.template` or `totp.template`).
-5. Build the screen enabling the second factor. For TOTP, it generates a secret with
-   `TotpAuthenticatorInterface::generateSecret()` and displays the QR code of `getQRContent()`.
+The container compilation fails, with these lines, while a declared firewall has no `two_factor`, uses other routes,
+leaves the CSRF protection off, has no logout (scheb builds the "cancel" link of the form from it), does not cover
+the path of the form, or has a broader access rule closing the form before the one above.
+`iq2i_herse.firewalls.<name>.two_factor: false` leaves a firewall out.
 
-The guide of scheb describes each step.
+3. Add the second factor to your user class, with the trait of the method, and generate the migration:
+
+```php
+use IQ2i\HerseBundle\TwoFactor\Model\EmailTwoFactorTrait;
+use Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface;
+
+class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface
+{
+    use EmailTwoFactorTrait;       // column "email_auth_code"
+}
+```
+
+```php
+use IQ2i\HerseBundle\TwoFactor\Model\TotpTwoFactorInterface;
+use IQ2i\HerseBundle\TwoFactor\Model\TotpTwoFactorTrait;
+
+class User implements UserInterface, PasswordAuthenticatedUserInterface, TotpTwoFactorInterface
+{
+    use TotpTwoFactorTrait;        // column "totp_secret"
+}
+```
+
+- With the email trait, every user of the class gets the second factor, and the code goes to the address declared
+  in `iq2i_herse.users.<class>.email`. Override `isEmailAuthEnabled()` to leave some users out.
+- With the TOTP trait, a user has the second factor once a secret is set (`setTotpSecret()`). The parameters are the
+  ones every authenticator app understands (SHA-1, 30 seconds, 6 digits).
+- An entity that already has the column under another name keeps it with an `#[ORM\AttributeOverride]`.
+
+4. With TOTP, build the screen enrolling the authenticator app: it generates a secret with
+   `TotpAuthenticatorInterface::generateSecret()`, displays the QR code of `getQRContent()` and stores the secret
+   once a first code is accepted.
+
+A project that wrote its own routes, template or entity methods keeps them: without `iq2i_herse.firewalls`, nothing
+is checked, and its own `scheb_two_factor` configuration always wins.
+
+## The code form
+
+The form is `@IQ2iHerse/two_factor/form.html.twig`: a bare page, made to be dressed by your project.
+
+- **Layout**: `iq2i_herse.ui.layout`, or `layout` of a firewall, is the template the page extends. It needs a `body`
+  block (and may have a `title` one), as the `base.html.twig` of a Symfony project.
+
+```yaml
+iq2i_herse:
+    ui:
+        layout: base.html.twig
+```
+
+- **Markup**: override `templates/bundles/IQ2iHerseBundle/two_factor/_form.html.twig` to rewrite the form, or embed
+  the original to change one block (`herse_two_factor_intro`, `herse_two_factor_error`, `herse_two_factor_code`,
+  `herse_two_factor_trusted`, `herse_two_factor_actions`):
+
+```twig
+{# templates/bundles/IQ2iHerseBundle/two_factor/_form.html.twig #}
+{% embed '@!IQ2iHerse/two_factor/_form.html.twig' %}
+    {% block herse_two_factor_actions %}
+        <button type="submit" class="btn btn-primary">{{ 'Verify'|trans({}, 'iq2i_herse') }}</button>
+    {% endblock %}
+{% endembed %}
+```
+
+- **Another template altogether**: `scheb_two_factor.email.template` or `scheb_two_factor.totp.template`, as with
+  scheb alone. Keep the CSRF token field in it.
+
+The texts are translated in English and French (`iq2i_herse` domain).
 
 ## Backup codes
 

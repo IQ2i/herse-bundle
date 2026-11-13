@@ -20,6 +20,7 @@ use IQ2i\HerseBundle\DependencyInjection\Feature\PasswordChangeNotificationFeatu
 use IQ2i\HerseBundle\DependencyInjection\Feature\PasswordPolicyFeature;
 use IQ2i\HerseBundle\DependencyInjection\Feature\TrustedDevicesFeature;
 use IQ2i\HerseBundle\DependencyInjection\Feature\TwoFactorFeature;
+use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\Mailer\Mailer;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
@@ -122,14 +123,45 @@ final class IQ2iHerseBundle extends AbstractBundle
                     ->treatNullLike([])
                     ->addDefaultsIfNotSet()
                     ->children()
+                        ->scalarNode('path_prefix')
+                            ->info('Prefix of the paths of the screens of the bundle on this firewall (e.g. "/admin"), which must match the pattern of the firewall.')
+                            ->defaultValue('')
+                            ->validate()
+                                ->ifTrue(static fn (mixed $prefix): bool => !\is_string($prefix) || ('' !== $prefix && 1 !== preg_match('#^(/[A-Za-z0-9._~-]+)+$#', $prefix)))
+                                ->thenInvalid('%s is not a valid path prefix: it starts with a slash and does not end with one, e.g. "/admin".')
+                            ->end()
+                        ->end()
+                        ->scalarNode('layout')
+                            ->info('Template the screens of the bundle extend on this firewall, iq2i_herse.ui.layout by default.')
+                            ->defaultNull()
+                            ->cannotBeEmpty()
+                        ->end()
                         ->booleanNode('login_throttling')
                             ->info('Require the firewall to use the login limiter of the bundle. Applies while login_throttling is enabled.')
+                            ->defaultTrue()
+                        ->end()
+                        ->booleanNode('two_factor')
+                            ->info('Ask the second factor on this firewall: its routes are generated and its security configuration is checked. Applies while two_factor is enabled.')
                             ->defaultTrue()
                         ->end()
                         ->booleanNode('verify')
                             ->info('Check the security configuration of the firewall. Disable it for a setup the checks do not understand.')
                             ->defaultTrue()
                         ->end()
+                    ->end()
+                ->end()
+            ->end()
+        ;
+
+        $children
+            ->arrayNode('ui')
+                ->info('The screens of the bundle: the second factor form.')
+                ->addDefaultsIfNotSet()
+                ->children()
+                    ->scalarNode('layout')
+                        ->info('Template the screens extend, with a "body" block. The layout of the bundle is a bare HTML page.')
+                        ->defaultValue('@IQ2iHerse/layout.html.twig')
+                        ->cannotBeEmpty()
                     ->end()
                 ->end()
             ->end()
@@ -169,7 +201,8 @@ final class IQ2iHerseBundle extends AbstractBundle
     /**
      * @param array{
      *     users: array<class-string, array{type: string, email: string, id: string, password: string, locale: string|null, plain_password?: array{property?: string|null, groups?: list<string>}}>,
-     *     firewalls: array<string, array{login_throttling: bool, verify: bool}>,
+     *     firewalls: array<string, array{path_prefix: string, layout: string|null, login_throttling: bool, two_factor: bool, verify: bool}>,
+     *     ui: array{layout: string},
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool, hash_guard: bool, forms: array{auto: bool, help: bool}},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
@@ -213,6 +246,8 @@ final class IQ2iHerseBundle extends AbstractBundle
         if ($config['two_factor']['enabled']) {
             TwoFactorFeature::load($config, $container, $builder);
         }
+
+        SharedServices::loadUi($config, $container);
     }
 
     /**

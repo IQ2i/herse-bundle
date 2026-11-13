@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle\Tests\TestApplication;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use IQ2i\HerseBundle\IQ2iHerseBundle;
+use IQ2i\HerseBundle\Routing\HerseRouteLoader;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
@@ -71,9 +72,16 @@ final class Kernel extends SymfonyKernel
             $routes->add('reset', '/reset')->controller(ResetPasswordController::class)->methods(['POST']);
         }
 
-        if (str_starts_with($this->getEnvironment(), 'two_factor')) {
+        if (str_starts_with($this->getEnvironment(), 'two_factor_screens')) {
+            // What a project writes: one line importing the routes of the bundle.
+            $routes->import('.', HerseRouteLoader::TYPE);
+            $routes->add('admin_private', '/admin/private')->controller(PageController::class)->methods(['GET']);
+        } elseif (str_starts_with($this->getEnvironment(), 'two_factor')) {
             $routes->add('two_factor_check', '/2fa_check')->controller(LoginController::class)->methods(['POST']);
             $routes->add('two_factor_form', '/2fa')->controller(PageController::class)->methods(['GET']);
+        }
+
+        if (str_starts_with($this->getEnvironment(), 'two_factor')) {
             $routes->add('private', '/private')->controller(PageController::class)->methods(['GET']);
         }
     }

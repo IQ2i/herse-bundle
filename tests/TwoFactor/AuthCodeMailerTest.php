@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle\Tests\TwoFactor;
 
 use IQ2i\HerseBundle\Mailer\Mailer;
 use IQ2i\HerseBundle\Tests\TestApplication\InMemoryLogger;
+use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\EmailAccount;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\TwoFactorAccount;
 use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
 use IQ2i\HerseBundle\User\UserResolver;
@@ -60,6 +61,32 @@ final class AuthCodeMailerTest extends TestCase
         self::assertSame([], $this->logger->records);
     }
 
+    public function testAUserNamingNoRecipientGetsTheAddressDeclaredForItsClass(): void
+    {
+        $account = new EmailAccount('alice@example.com');
+        $account->setEmailAuthCode('123456');
+        self::assertSame('', $account->getEmailAuthRecipient());
+        self::assertTrue($account->isEmailAuthEnabled());
+        self::assertSame('123456', $account->getEmailAuthCode());
+
+        $this->mailer([EmailAccount::class => ['type' => 'customer', 'email' => 'email', 'id' => 'id']])->sendAuthCode($account);
+
+        self::assertCount(1, $this->sent);
+        $email = $this->sent[0];
+        self::assertInstanceOf(TemplatedEmail::class, $email);
+        self::assertSame('alice@example.com', $email->getTo()[0]->getAddress());
+    }
+
+    public function testNothingIsSentToAUserNamingNoRecipientWhoseClassIsNotDeclared(): void
+    {
+        $account = new EmailAccount('alice@example.com');
+        $account->setEmailAuthCode('123456');
+
+        $this->mailer()->sendAuthCode($account);
+
+        self::assertCount(0, $this->sent);
+    }
+
     public function testNothingIsSentWithoutACode(): void
     {
         $this->mailer()->sendAuthCode(new TwoFactorAccount('alice@example.com'));
@@ -89,7 +116,10 @@ final class AuthCodeMailerTest extends TestCase
         self::assertStringNotContainsString('987654', json_encode($this->logger->records, \JSON_THROW_ON_ERROR));
     }
 
-    private function mailer(): AuthCodeMailer
+    /**
+     * @param array<class-string, array{type: string, email: string, id: string}> $users the declared user classes
+     */
+    private function mailer(array $users = []): AuthCodeMailer
     {
         $transport = new class($this->sent) implements MailerInterface {
             /**
@@ -106,7 +136,7 @@ final class AuthCodeMailerTest extends TestCase
         };
 
         return new AuthCodeMailer(
-            new UserResolver([], PropertyAccess::createPropertyAccessor()),
+            new UserResolver($users, PropertyAccess::createPropertyAccessor()),
             new Mailer($transport, new Translator('en'), $this->logger, 'no-reply@example.com', null, null),
             $this->logger,
         );
