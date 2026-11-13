@@ -15,6 +15,7 @@ namespace IQ2i\HerseBundle\Security;
 
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * The firewalls declared under iq2i_herse.firewalls, and the one of the current request.
@@ -24,12 +25,15 @@ use Symfony\Component\HttpFoundation\RequestStack;
 final class FirewallRegistry
 {
     /**
-     * @param array<string, array{path_prefix: string, layout: string|null}> $firewalls
+     * @param array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}> $firewalls
+     * @param bool                                                                                                $secondFactorRequired whether the users of the firewalls asking a second factor must have one
      */
     public function __construct(
         private readonly array $firewalls,
         private readonly Security $security,
         private readonly RequestStack $requests,
+        private readonly ?UrlGeneratorInterface $urls = null,
+        private readonly bool $secondFactorRequired = false,
     ) {
     }
 
@@ -42,6 +46,27 @@ final class FirewallRegistry
         $name = null === $request ? null : $this->security->getFirewallConfig($request)?->getName();
 
         return null !== $name && isset($this->firewalls[$name]) ? $name : null;
+    }
+
+    /**
+     * Whether a user of the firewall cannot go on without a second factor.
+     */
+    public function asksSecondFactor(string $firewall): bool
+    {
+        return $this->secondFactorRequired && ($this->firewalls[$firewall]['two_factor'] ?? false);
+    }
+
+    /**
+     * @return string the URL a screen of the bundle leaves to: the "home" of the firewall, a path or a route name
+     */
+    public function home(string $firewall): string
+    {
+        $home = $this->firewalls[$firewall]['home'] ?? null;
+        if (null === $home) {
+            return '' === $this->firewalls[$firewall]['path_prefix'] ? '/' : $this->firewalls[$firewall]['path_prefix'];
+        }
+
+        return str_starts_with($home, '/') || null === $this->urls ? $home : $this->urls->generate($home);
     }
 
     /**

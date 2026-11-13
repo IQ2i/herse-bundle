@@ -16,6 +16,7 @@ namespace IQ2i\HerseBundle\Tests;
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
 use IQ2i\HerseBundle\Console\PasswordQuestionValidator;
+use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\Form\Extension\PasswordPolicyTypeExtension;
@@ -38,6 +39,7 @@ use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceListener;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\Twig\HerseExtension;
 use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
+use IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
 use IQ2i\HerseBundle\Validator\Constraints\PasswordPolicy;
@@ -187,13 +189,34 @@ final class IQ2iHerseBundleTest extends TestCase
 
         $loader = $container->getDefinition('iq2i_herse.route_loader');
         self::assertTrue($loader->hasTag('routing.loader'));
-        self::assertFalse($loader->getArgument(1));
+        self::assertNull($loader->getArgument(1));
         self::assertSame(HerseRouteLoader::class, $loader->getClass());
         self::assertSame(FirewallRegistry::class, $container->getDefinition('iq2i_herse.firewall_registry')->getClass());
 
         $extension = $container->getDefinition(HerseExtension::class);
         self::assertTrue($extension->hasTag('twig.extension'));
         self::assertEquals([new Reference(PasswordPolicyDescriber::class), new Reference('iq2i_herse.firewall_registry'), 'base.html.twig'], $extension->getArguments());
+    }
+
+    public function testTheEnrollmentOfAnAuthenticatorAppComesWithTheDeclaredFirewalls(): void
+    {
+        $this->requireScheb();
+        $firewalls = ['main' => ['verify' => false]];
+
+        $container = $this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'totp']]);
+        self::assertTrue($container->getDefinition(TotpEnrollmentController::class)->isPublic());
+        self::assertSame([['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 7]], $container->getDefinition('iq2i_herse.two_factor.enrollment_listener')->getTag('kernel.event_listener'));
+        self::assertTrue($container->getDefinition('iq2i_herse.firewall_registry')->getArgument(4));
+        self::assertSame('totp', $container->getDefinition('iq2i_herse.route_loader')->getArgument(1));
+        self::assertSame('iq2i_herse.two_factor.qr_code_renderer', (string) $container->getAlias(QrCodeRendererInterface::class));
+
+        $optional = $this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'totp', 'required' => false, 'throttling' => false]]);
+        self::assertFalse($optional->hasDefinition('iq2i_herse.two_factor.enrollment_listener'));
+        self::assertNull($optional->getDefinition(TotpEnrollmentController::class)->getArgument(9));
+        self::assertFalse($optional->getDefinition('iq2i_herse.firewall_registry')->getArgument(4));
+
+        self::assertFalse($this->load(['firewalls' => $firewalls, 'two_factor' => ['method' => 'email'], 'mailer' => ['sender' => 'no-reply@example.com']])->hasDefinition(TotpEnrollmentController::class));
+        self::assertFalse($this->load(['two_factor' => ['method' => 'totp']])->hasDefinition(TotpEnrollmentController::class));
     }
 
     public function testNoScreenServiceIsDeclaredWithoutDeclaredFirewall(): void

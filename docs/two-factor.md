@@ -12,6 +12,7 @@ or when its bundle is not registered in `config/bundles.php`.
 ```bash
 composer require scheb/2fa-bundle scheb/2fa-email           # method: email
 composer require scheb/2fa-bundle scheb/2fa-totp            # method: totp
+composer require bacon/bacon-qr-code                        # totp: the QR code of the enrollment screen
 composer require scheb/2fa-trusted-device                   # trusted_devices: true
 composer require symfony/rate-limiter                       # throttling, enabled by default
 ```
@@ -27,6 +28,7 @@ iq2i_herse:
     two_factor:
         enabled: true
         method: email          # or totp, required
+        required: true         # default: with totp, a user without authenticator app must enroll one
         trusted_devices: false # a trusted device skips the second factor, requires trusted_devices
         trusted_lifetime: '30 days' # how long a trusted device skips it, counted from its verification
         throttling:            # wrong second factors allowed to a user, enabled by default
@@ -78,8 +80,8 @@ user object, the firewall and the IP, never the code.
 
 ## What your project does
 
-Four short steps. The routes, the code form and the entity methods are provided; `security.yaml` stays yours, and the
-bundle checks it.
+Three short steps. The routes, the code form, the enrollment screen and the entity methods are provided;
+`security.yaml` stays yours, and the bundle checks it.
 
 1. Declare the firewalls asking for the second factor, and import the routes of the bundle:
 
@@ -154,10 +156,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TotpTwo
   ones every authenticator app understands (SHA-1, 30 seconds, 6 digits).
 - An entity that already has the column under another name keeps it with an `#[ORM\AttributeOverride]`.
 
-4. With TOTP, build the screen enrolling the authenticator app: it generates a secret with
-   `TotpAuthenticatorInterface::generateSecret()`, displays the QR code of `getQRContent()` and stores the secret
-   once a first code is accepted.
-
 A project that wrote its own routes, template or entity methods keeps them: without `iq2i_herse.firewalls`, nothing
 is checked, and its own `scheb_two_factor` configuration always wins.
 
@@ -191,6 +189,31 @@ iq2i_herse:
   scheb alone. Keep the CSRF token field in it.
 
 The texts are translated in English and French (`iq2i_herse` domain).
+
+## Enrolling an authenticator app
+
+With `method: totp`, each declared firewall gets the screen `iq2i_herse_<firewall>_two_factor_setup`
+(`<path_prefix>/second-factor/setup`). It shows a QR code and the key to type by hand, and stores the secret on the
+account once a first code proved the app has it. Until then the secret only lives in the session.
+
+- **Mandatory by default**: scheb asks nothing of an account without a secret. With `required: true`, such an
+  account is redirected to the screen from every page of the firewall until it enrolled; it can still log out.
+  `required: false` leaves the enrollment to the user: link to the route from your account page.
+- **Where it leads**: `iq2i_herse.firewalls.<name>.home`, a path or a route name, the path prefix by default.
+- **QR code**: drawn on the server, as an inline SVG, with `bacon/bacon-qr-code` (which `endroid/qr-code` installs
+  too). Without it, the screen only shows the key. Alias `IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface`
+  to your own service to draw it another way.
+- **Wrong codes** count in the [throttling](#what-the-bundle-does) of the second factor.
+- **Trusted devices**: with `trusted_devices: true`, the screen offers to trust the device used to enroll.
+- **Impersonation**: somebody impersonating a user is neither redirected to the screen nor allowed on it.
+- **Markup**: `two_factor/setup.html.twig` and `two_factor/_setup.html.twig` are dressed like the code form (blocks
+  `herse_two_factor_setup_intro`, `_secret`, `_error`, `_code`, `_trusted`, `_actions`).
+
+`IQ2i\HerseBundle\Event\TwoFactorEnabledEvent` is dispatched once the secret is stored, with the `UserReference`, the
+user, the firewall and the IP, never the secret.
+
+The secret is stored as scheb reads it, in clear text in the `totp_secret` column: protect the database and its
+backups accordingly.
 
 ## Backup codes
 

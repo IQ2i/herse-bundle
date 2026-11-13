@@ -33,6 +33,7 @@ iq2i_herse:
     firewalls:                              # by firewall name: their security configuration is checked at compilation
         main:
             path_prefix: ''                 # prefix of the routes of the bundle on the firewall, e.g. /admin
+            home: ~                         # where the screens lead once done, a path or a route name; the path prefix by default
             layout: ~                       # template the screens extend on this firewall, ui.layout otherwise
             login_throttling: true          # require the limiter of the bundle while login_throttling is enabled
             two_factor: true                # generate the second factor routes and check the firewall while two_factor is enabled
@@ -85,6 +86,7 @@ iq2i_herse:
     two_factor:
         enabled: false
         method: ~                           # email | totp, required when enabled
+        required: true                      # totp: a user without authenticator app is sent to the enrollment screen
         trusted_devices: false
         trusted_lifetime: '30 days'
         throttling:
@@ -163,6 +165,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 - The email code goes to `getEmailAuthRecipient()` of the user class, or to the `email` property path when it is empty (the trait).
 - Code form: extends `ui.layout` (or the `layout` of the firewall), which needs a `body` block. Override or embed `two_factor/_form.html.twig` in `templates/bundles/IQ2iHerseBundle/` to change the markup.
 - `security.yaml` stays written by the project and is checked, see `firewalls`.
+- TOTP enrollment: route `iq2i_herse_<firewall>_two_factor_setup` (`<path_prefix>/second-factor/setup`), provided with its screen. With `required: true` (default) a user of a declared firewall without a secret is redirected to it from every page; with `false`, link to it. The secret is stored once a first code is accepted. QR code with `bacon/bacon-qr-code` (the key alone without it). Leads to `firewalls.<name>.home`. Never write an enrollment controller, a "pending secret" class or a redirect listener.
 - `trusted_devices: true` requires the `trusted_devices` feature, with the firewall watched there. The cookie and lifetime options of scheb then have no effect; `trusted_lifetime` counts from the verification and is not extended by logins.
 - `throttling`: wrong second factors per user and firewall, whatever the IP. `throttling: false` removes it, only when the project brings its own. The login throttling cannot replace it.
 - `enabled`, `method` and `trusted_devices` must be literal values, not environment variables.
@@ -211,6 +214,7 @@ All in `IQ2i\HerseBundle\Event`, dispatched with the Symfony event dispatcher.
 | `TwoFactorSucceededEvent` | `reference` (null if the class is not declared), `user`, `firewall`, `ip` | Relays scheb. Never carries the code. |
 | `TwoFactorFailedEvent` | same | Relays scheb. |
 | `TwoFactorThrottledEvent` | same | Once, when the limit is reached. |
+| `TwoFactorEnabledEvent` | same | Once a user enrolled an authenticator app on the screen of the bundle. Never carries the secret. |
 
 `TrustLevel` (`Known`, `Verified`) is the trust of a device: `Verified` means it passed a second factor and was trusted by the user.
 

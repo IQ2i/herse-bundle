@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Routing;
 
+use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
 use Symfony\Component\Config\Loader\Loader;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
@@ -27,18 +28,22 @@ final class HerseRouteLoader extends Loader
     public const TYPE = 'iq2i_herse';
     public const TWO_FACTOR_FORM = 'two_factor_form';
     public const TWO_FACTOR_CHECK = 'two_factor_check';
+    public const TWO_FACTOR_SETUP = 'two_factor_setup';
 
+    // The setup is not under "/2fa": the access rule opening that path to a pending second factor must not cover it.
     private const PATHS = [
         self::TWO_FACTOR_FORM => '/2fa',
         self::TWO_FACTOR_CHECK => '/2fa_check',
+        self::TWO_FACTOR_SETUP => '/second-factor/setup',
     ];
 
     /**
-     * @param array<string, array{path_prefix: string, two_factor: bool}> $firewalls the declared firewalls
+     * @param array<string, array{path_prefix: string, two_factor: bool}> $firewalls       the declared firewalls
+     * @param 'email'|'totp'|null                                         $twoFactorMethod null while the second factor is disabled
      */
     public function __construct(
         private readonly array $firewalls,
-        private readonly bool $twoFactor,
+        private readonly ?string $twoFactorMethod,
     ) {
         parent::__construct();
     }
@@ -57,13 +62,17 @@ final class HerseRouteLoader extends Loader
     {
         $routes = new RouteCollection();
         foreach ($this->firewalls as $name => $firewall) {
-            if (!$this->twoFactor || !$firewall['two_factor']) {
+            if (null === $this->twoFactorMethod || !$firewall['two_factor']) {
                 continue;
             }
 
             $routes->add(self::name($name, self::TWO_FACTOR_FORM), new Route(self::path($firewall['path_prefix'], self::TWO_FACTOR_FORM), ['_controller' => 'scheb_two_factor.form_controller::form'], methods: ['GET']));
             // No controller: the firewall answers the submitted code.
             $routes->add(self::name($name, self::TWO_FACTOR_CHECK), new Route(self::path($firewall['path_prefix'], self::TWO_FACTOR_CHECK), methods: ['POST']));
+
+            if ('totp' === $this->twoFactorMethod) {
+                $routes->add(self::name($name, self::TWO_FACTOR_SETUP), new Route(self::path($firewall['path_prefix'], self::TWO_FACTOR_SETUP), ['_controller' => TotpEnrollmentController::class], methods: ['GET', 'POST']));
+            }
         }
 
         return $routes;

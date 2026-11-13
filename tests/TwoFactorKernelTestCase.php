@@ -151,6 +151,23 @@ abstract class TwoFactorKernelTestCase extends DoctrineKernelTestCase
     }
 
     /**
+     * The key the enrollment screen shows next to the QR code.
+     *
+     * @return non-empty-string
+     */
+    protected function shownSecret(string $html): string
+    {
+        if (1 !== preg_match('#<code>([A-Z2-7 ]+)</code>#', $html, $matches)) {
+            self::fail('The key of the authenticator app was expected.');
+        }
+
+        $secret = str_replace(' ', '', $matches[1]);
+        \assert('' !== $secret);
+
+        return $secret;
+    }
+
+    /**
      * The browser leaves and comes back: the device cookie stays, the session is gone.
      */
     protected function closeSession(): void

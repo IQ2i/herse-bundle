@@ -131,6 +131,11 @@ final class IQ2iHerseBundle extends AbstractBundle
                                 ->thenInvalid('%s is not a valid path prefix: it starts with a slash and does not end with one, e.g. "/admin".')
                             ->end()
                         ->end()
+                        ->scalarNode('home')
+                            ->info('Where the screens of the bundle lead once they are done, as a path or a route name. The path prefix by default.')
+                            ->defaultNull()
+                            ->cannotBeEmpty()
+                        ->end()
                         ->scalarNode('layout')
                             ->info('Template the screens of the bundle extend on this firewall, iq2i_herse.ui.layout by default.')
                             ->defaultNull()
@@ -155,7 +160,7 @@ final class IQ2iHerseBundle extends AbstractBundle
 
         $children
             ->arrayNode('ui')
-                ->info('The screens of the bundle: the second factor form.')
+                ->info('The screens of the bundle: the second factor form and the enrollment of an authenticator app.')
                 ->addDefaultsIfNotSet()
                 ->children()
                     ->scalarNode('layout')
@@ -201,14 +206,14 @@ final class IQ2iHerseBundle extends AbstractBundle
     /**
      * @param array{
      *     users: array<class-string, array{type: string, email: string, id: string, password: string, locale: string|null, plain_password?: array{property?: string|null, groups?: list<string>}}>,
-     *     firewalls: array<string, array{path_prefix: string, layout: string|null, login_throttling: bool, two_factor: bool, verify: bool}>,
+     *     firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, login_throttling: bool, two_factor: bool, verify: bool}>,
      *     ui: array{layout: string},
      *     mailer: array{sender: string|null, sender_name: string|null, app_name: string|null},
      *     password_policy: array{enabled: bool, min_length: int, max_length: int, required_character_types: int, check_compromised: bool, hash_guard: bool, forms: array{auto: bool, help: bool}},
      *     login_throttling: array{enabled: bool, identifier_and_ip: array{limit: int, interval: string}, ip: array{limit: int, interval: string}, identifier: array{enabled: bool, limit: int, interval: string}, cache_pool: string, lock_factory: string|null},
      *     trusted_devices: array{enabled: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
-     *     two_factor: array{enabled: bool, method?: 'email'|'totp', trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
+     *     two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void

@@ -13,11 +13,16 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\DependencyInjection\Feature;
 
+use BaconQrCode\Writer;
+use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
 use IQ2i\HerseBundle\DependencyInjection\LimiterConfiguration;
 use IQ2i\HerseBundle\DependencyInjection\SharedServices;
 use IQ2i\HerseBundle\DependencyInjection\Support;
 use IQ2i\HerseBundle\Mailer\Mailer;
 use IQ2i\HerseBundle\TwoFactor\AuthCodeMailer;
+use IQ2i\HerseBundle\TwoFactor\EnrollmentListener;
+use IQ2i\HerseBundle\TwoFactor\QrCode\BaconQrCodeRenderer;
+use IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface;
 use IQ2i\HerseBundle\TwoFactor\SecondFactorThrottler;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorEventRelay;
@@ -29,8 +34,11 @@ use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Symfony\Component\DependencyInjection\Loader\Configurator\ServicesConfigurator;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\CacheStorage;
 
@@ -50,6 +58,10 @@ final class TwoFactorFeature
                 ->enumNode('method')
                     ->info('The second factor: "email" (a code sent by email) or "totp" (an authenticator app). Required when the feature is enabled.')
                     ->values(['email', 'totp'])
+                ->end()
+                ->booleanNode('required')
+                    ->info('With totp, send the users without an authenticator app to the enrollment screen on the declared firewalls, until they have one. With email, every user of a class using the trait of the bundle has the second factor.')
+                    ->defaultTrue()
                 ->end()
                 ->booleanNode('trusted_devices')
                     ->info('Skip the second factor on a device that passed it and was trusted by the user, with the device registry in place of the cookie of scheb. Requires trusted_devices and scheb/2fa-trusted-device.')
@@ -83,7 +95,7 @@ final class TwoFactorFeature
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', required: bool, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
      */
     public static function load(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -141,6 +153,10 @@ final class TwoFactorFeature
             ;
         }
 
+        if ('totp' === $method && [] !== $config['firewalls']) {
+            self::loadEnrollment($services, $config['two_factor']['required'], $throttling['enabled'], $bridge);
+        }
+
         if ($bridge) {
             $services->set('iq2i_herse.two_factor.trusted_device_manager', TrustedDeviceManager::class)->args([
                 new Reference('iq2i_herse.user_resolver'),
@@ -149,6 +165,45 @@ final class TwoFactorFeature
                 new Reference('request_stack'),
                 $config['two_factor']['trusted_lifetime'],
             ]);
+        }
+    }
+
+    /**
+     * The screen enrolling an authenticator app on the declared firewalls, and the listener making it mandatory.
+     */
+    private static function loadEnrollment(ServicesConfigurator $services, bool $required, bool $throttled, bool $bridge): void
+    {
+        if (class_exists(Writer::class)) {
+            $services->set('iq2i_herse.two_factor.qr_code_renderer', BaconQrCodeRenderer::class);
+            // An alias of the project to its own renderer replaces this one.
+            $services->alias(QrCodeRendererInterface::class, 'iq2i_herse.two_factor.qr_code_renderer');
+        }
+
+        // Public: the route of the enrollment screen names it.
+        $services->set(TotpEnrollmentController::class)
+            ->args([
+                new Reference('iq2i_herse.firewall_registry'),
+                new Reference('security.helper'),
+                new Reference('scheb_two_factor.security.totp_authenticator'),
+                new Reference('scheb_two_factor.persister'),
+                new Reference('security.csrf.token_manager'),
+                new Reference('twig'),
+                new Reference('security.logout_url_generator'),
+                new Reference('event_dispatcher'),
+                new Reference('iq2i_herse.user_resolver'),
+                $throttled ? new Reference('iq2i_herse.two_factor.throttler') : null,
+                new Reference(QrCodeRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                $bridge ? new Reference('scheb_two_factor.trusted_device_manager') : null,
+            ])
+            ->public()
+        ;
+
+        if ($required) {
+            $services->set('iq2i_herse.two_factor.enrollment_listener', EnrollmentListener::class)
+                ->args([new Reference('iq2i_herse.firewall_registry'), new Reference('security.token_storage'), new Reference('router')])
+                // Right after the firewall, which loads the user and answers a logout by itself.
+                ->tag('kernel.event_listener', ['event' => KernelEvents::REQUEST, 'method' => 'onKernelRequest', 'priority' => 7])
+            ;
         }
     }
 

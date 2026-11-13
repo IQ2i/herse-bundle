@@ -13,19 +13,58 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests\Security;
 
-use IQ2i\HerseBundle\Security\FirewallRegistry;
 use PHPUnit\Framework\TestCase;
-use Symfony\Bundle\SecurityBundle\Security;
-use Symfony\Component\DependencyInjection\Container;
-use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Routing\Generator\UrlGenerator;
+use Symfony\Component\Routing\RequestContext;
+use Symfony\Component\Routing\Route;
+use Symfony\Component\Routing\RouteCollection;
 
 final class FirewallRegistryTest extends TestCase
 {
     public function testThereIsNoCurrentFirewallOutsideOfARequest(): void
     {
-        $registry = new FirewallRegistry(['main' => ['path_prefix' => '', 'layout' => 'layout.html.twig']], new Security(new Container()), new RequestStack());
+        $registry = FirewallRegistries::create(['main' => ['layout' => 'layout.html.twig']], null);
 
         self::assertNull($registry->current());
         self::assertNull($registry->layout());
+    }
+
+    public function testTheFirewallOfTheRequestIsTheCurrentOneWhenItIsDeclared(): void
+    {
+        self::assertSame('admin', FirewallRegistries::create(['admin' => []], 'admin')->current());
+        self::assertNull(FirewallRegistries::create(['admin' => []], 'api')->current());
+    }
+
+    public function testAFirewallHasItsOwnLayoutOrNone(): void
+    {
+        self::assertSame('admin.html.twig', FirewallRegistries::create(['admin' => ['layout' => 'admin.html.twig']], 'admin')->layout());
+        self::assertNull(FirewallRegistries::create(['admin' => []], 'admin')->layout());
+    }
+
+    public function testTheSecondFactorIsAskedOnTheFirewallsThatDidNotOptOut(): void
+    {
+        $firewalls = ['admin' => [], 'api' => ['two_factor' => false]];
+
+        self::assertTrue(FirewallRegistries::create($firewalls, null)->asksSecondFactor('admin'));
+        self::assertFalse(FirewallRegistries::create($firewalls, null)->asksSecondFactor('api'));
+        self::assertFalse(FirewallRegistries::create($firewalls, null)->asksSecondFactor('unknown'));
+        self::assertFalse(FirewallRegistries::create($firewalls, null, secondFactorRequired: false)->asksSecondFactor('admin'));
+    }
+
+    public function testTheHomeOfAFirewallIsItsPrefixAPathOrARoute(): void
+    {
+        $routes = new RouteCollection();
+        $routes->add('dashboard', new Route('/admin/dashboard'));
+        $registry = FirewallRegistries::create([
+            'main' => [],
+            'admin' => ['path_prefix' => '/admin'],
+            'shop' => ['home' => '/account'],
+            'back' => ['home' => 'dashboard'],
+        ], null, urls: new UrlGenerator($routes, new RequestContext()));
+
+        self::assertSame('/', $registry->home('main'));
+        self::assertSame('/admin', $registry->home('admin'));
+        self::assertSame('/account', $registry->home('shop'));
+        self::assertSame('/admin/dashboard', $registry->home('back'));
     }
 }

@@ -110,6 +110,30 @@
                 <source>Cancel</source>
                 <target>Annuler</target>
             </trans-unit>
+            <trans-unit id="two_factor_setup.title">
+                <source>Set up two-factor authentication</source>
+                <target>Configurer la double authentification</target>
+            </trans-unit>
+            <trans-unit id="two_factor_setup.intro">
+                <source>Your account must be protected by an authenticator app. Scan this QR code with the app, then enter the code it shows.</source>
+                <target>Votre compte doit être protégé par une application d'authentification. Scannez ce QR code avec l'application, puis saisissez le code qu'elle affiche.</target>
+            </trans-unit>
+            <trans-unit id="two_factor_setup.qr_code">
+                <source>QR code to scan with your authenticator app</source>
+                <target>QR code à scanner avec votre application d'authentification</target>
+            </trans-unit>
+            <trans-unit id="two_factor_setup.key">
+                <source>Key to enter by hand:</source>
+                <target>Clé à saisir manuellement :</target>
+            </trans-unit>
+            <trans-unit id="two_factor_setup.throttled">
+                <source>Too many wrong codes. Try again later.</source>
+                <target>Trop de codes erronés. Réessayez plus tard.</target>
+            </trans-unit>
+            <trans-unit id="two_factor_setup.invalid">
+                <source>This code is not valid.</source>
+                <target>Ce code n'est pas valide.</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

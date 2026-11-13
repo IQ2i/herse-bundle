@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests\Routing;
 
+use IQ2i\HerseBundle\Controller\TotpEnrollmentController;
 use IQ2i\HerseBundle\Routing\HerseRouteLoader;
 use PHPUnit\Framework\TestCase;
 
@@ -26,7 +27,7 @@ final class HerseRouteLoaderTest extends TestCase
 
     public function testEachFirewallAskingTheSecondFactorGetsItsRoutes(): void
     {
-        $routes = (new HerseRouteLoader(self::FIREWALLS, true))->load('.', 'iq2i_herse');
+        $routes = (new HerseRouteLoader(self::FIREWALLS, 'email'))->load('.', 'iq2i_herse');
 
         self::assertSame(
             ['iq2i_herse_admin_two_factor_form' => '/admin/2fa', 'iq2i_herse_admin_two_factor_check' => '/admin/2fa_check', 'iq2i_herse_main_two_factor_form' => '/2fa', 'iq2i_herse_main_two_factor_check' => '/2fa_check'],
@@ -38,14 +39,24 @@ final class HerseRouteLoaderTest extends TestCase
         self::assertNull($routes->get('iq2i_herse_main_two_factor_check')->getDefault('_controller'));
     }
 
+    public function testTheEnrollmentScreenComesWithTheAuthenticatorApp(): void
+    {
+        $routes = (new HerseRouteLoader(self::FIREWALLS, 'totp'))->load('.', 'iq2i_herse');
+
+        self::assertSame('/admin/second-factor/setup', $routes->get('iq2i_herse_admin_two_factor_setup')?->getPath());
+        self::assertSame(TotpEnrollmentController::class, $routes->get('iq2i_herse_main_two_factor_setup')?->getDefault('_controller'));
+        self::assertSame(['GET', 'POST'], $routes->get('iq2i_herse_main_two_factor_setup')->getMethods());
+        self::assertNull($routes->get('iq2i_herse_api_two_factor_setup'));
+    }
+
     public function testNoRouteIsGeneratedWhileTheSecondFactorIsDisabled(): void
     {
-        self::assertCount(0, (new HerseRouteLoader(self::FIREWALLS, false))->load('.', 'iq2i_herse'));
+        self::assertCount(0, (new HerseRouteLoader(self::FIREWALLS, null))->load('.', 'iq2i_herse'));
     }
 
     public function testOnlyItsOwnResourceTypeIsLoaded(): void
     {
-        $loader = new HerseRouteLoader(self::FIREWALLS, true);
+        $loader = new HerseRouteLoader(self::FIREWALLS, 'email');
 
         self::assertTrue($loader->supports('.', 'iq2i_herse'));
         self::assertFalse($loader->supports('.', 'attribute'));

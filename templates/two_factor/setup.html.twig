@@ -1,0 +1,7 @@
+{% extends herse_layout() %}
+
+{% block title %}{{ 'Set up two-factor authentication'|trans({}, 'iq2i_herse') }}{% endblock %}
+
+{% block body %}
+    {{ include('@IQ2iHerse/two_factor/_setup.html.twig') }}
+{% endblock %}

@@ -76,6 +76,9 @@ final class Kernel extends SymfonyKernel
             // What a project writes: one line importing the routes of the bundle.
             $routes->import('.', HerseRouteLoader::TYPE);
             $routes->add('admin_private', '/admin/private')->controller(PageController::class)->methods(['GET']);
+            // The firewall answers them: a logout path needs a route to get past the router.
+            $routes->add('logout', '/logout')->controller(PageController::class);
+            $routes->add('admin_logout', '/admin/logout')->controller(PageController::class);
         } elseif (str_starts_with($this->getEnvironment(), 'two_factor')) {
             $routes->add('two_factor_check', '/2fa_check')->controller(LoginController::class)->methods(['POST']);
             $routes->add('two_factor_form', '/2fa')->controller(PageController::class)->methods(['GET']);

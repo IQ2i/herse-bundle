@@ -22,6 +22,7 @@ use IQ2i\HerseBundle\User\UserResolver;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Mailer\MailerInterface;
@@ -71,17 +72,26 @@ final class SharedServices
     /**
      * The routes, the layout and the Twig functions of the screens of the bundle.
      *
-     * @param array{firewalls: array<string, array{path_prefix: string, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool}} $config
+     * @param array{firewalls: array<string, array{path_prefix: string, home: string|null, layout: string|null, two_factor: bool}>, ui: array{layout: string}, password_policy: array{enabled: bool}, two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool}} $config
      */
     public static function loadUi(array $config, ContainerConfigurator $container): void
     {
         $services = $container->services();
 
         if ([] !== $config['firewalls']) {
-            $services->set('iq2i_herse.firewall_registry', FirewallRegistry::class)->args([$config['firewalls'], new Reference('security.helper'), new Reference('request_stack')]);
+            $services->set('iq2i_herse.firewall_registry', FirewallRegistry::class)->args([
+                $config['firewalls'],
+                new Reference('security.helper'),
+                new Reference('request_stack'),
+                new Reference('router', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                $config['two_factor']['enabled'] && $config['two_factor']['required'],
+            ]);
 
             if (class_exists(RouteCollection::class)) {
-                $services->set('iq2i_herse.route_loader', HerseRouteLoader::class)->args([$config['firewalls'], $config['two_factor']['enabled']])->tag('routing.loader');
+                $services->set('iq2i_herse.route_loader', HerseRouteLoader::class)
+                    ->args([$config['firewalls'], $config['two_factor']['enabled'] ? $config['two_factor']['method'] ?? null : null])
+                    ->tag('routing.loader')
+                ;
             }
         }
 

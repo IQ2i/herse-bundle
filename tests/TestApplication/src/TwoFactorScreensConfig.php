@@ -26,8 +26,9 @@ final class TwoFactorScreensConfig
      * @param 'email'|'totp'       $method
      * @param class-string         $accountClass the user class
      * @param array<string, mixed> $herse        more options of iq2i_herse
+     * @param array<string, mixed> $twoFactor    more options of two_factor
      */
-    public static function load(ContainerConfigurator $container, string $method, string $accountClass, array $herse = []): void
+    public static function load(ContainerConfigurator $container, string $method, string $accountClass, array $herse = [], array $twoFactor = []): void
     {
         $firewalls = [];
         foreach (['admin' => '/admin', 'main' => ''] as $name => $prefix) {
@@ -46,7 +47,7 @@ final class TwoFactorScreensConfig
 
         AccountApplication::load($container, $herse + [
             'firewalls' => ['admin' => ['path_prefix' => '/admin', 'layout' => 'admin_layout.html.twig'], 'main' => null],
-            'two_factor' => ['method' => $method, 'throttling' => ['cache_pool' => 'herse_two_factor_throttling']],
+            'two_factor' => $twoFactor + ['method' => $method, 'throttling' => ['cache_pool' => 'herse_two_factor_throttling']],
         ], $firewalls, accountClass: $accountClass);
 
         $container->extension('framework', [
@@ -56,6 +57,7 @@ final class TwoFactorScreensConfig
             'cache' => ['pools' => ['herse_two_factor_throttling' => ['adapter' => 'cache.adapter.filesystem']]],
         ]);
         $container->services()->alias('test.two_factor_throttling.cache', 'herse_two_factor_throttling')->public();
+        $container->services()->alias('test.event_dispatcher', 'event_dispatcher')->public();
         $container->extension('security', ['access_control' => [
             ['path' => '^/admin/2fa', 'roles' => 'IS_AUTHENTICATED_2FA_IN_PROGRESS'],
             ['path' => '^/2fa', 'roles' => 'IS_AUTHENTICATED_2FA_IN_PROGRESS'],

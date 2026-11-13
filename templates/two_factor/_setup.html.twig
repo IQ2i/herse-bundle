@@ -1,0 +1,47 @@
+{# qrCode: a data URI or null, secret: the key to type by hand, error: "invalid", "throttled" or null. #}
+{% block herse_two_factor_setup %}
+    <form method="post" class="herse-two-factor-setup">
+        {% block herse_two_factor_setup_intro %}
+            <p>{{ 'Your account must be protected by an authenticator app. Scan this QR code with the app, then enter the code it shows.'|trans({}, 'iq2i_herse') }}</p>
+        {% endblock %}
+
+        {% block herse_two_factor_setup_secret %}
+            {% if qrCode %}
+                <p><img src="{{ qrCode }}" alt="{{ 'QR code to scan with your authenticator app'|trans({}, 'iq2i_herse') }}" width="220" height="220"></p>
+            {% endif %}
+            <p>{{ 'Key to enter by hand:'|trans({}, 'iq2i_herse') }} <code>{{ secret }}</code></p>
+        {% endblock %}
+
+        {% block herse_two_factor_setup_error %}
+            {% if error == 'throttled' %}
+                <p role="alert" class="herse-error">{{ 'Too many wrong codes. Try again later.'|trans({}, 'iq2i_herse') }}</p>
+            {% elseif error %}
+                <p role="alert" class="herse-error">{{ 'This code is not valid.'|trans({}, 'iq2i_herse') }}</p>
+            {% endif %}
+        {% endblock %}
+
+        {% block herse_two_factor_setup_code %}
+            <p>
+                <label for="_auth_code">{{ 'Code'|trans({}, 'iq2i_herse') }}</label>
+                <input id="_auth_code" type="text" name="_auth_code" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+            </p>
+        {% endblock %}
+
+        {% block herse_two_factor_setup_trusted %}
+            {% if canTrustDevice %}
+                <p>
+                    <label for="_trusted"><input id="_trusted" type="checkbox" name="_trusted" value="1"> {{ 'Trust this device'|trans({}, 'iq2i_herse') }}</label>
+                </p>
+            {% endif %}
+        {% endblock %}
+
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token(csrfTokenId) }}">
+
+        {% block herse_two_factor_setup_actions %}
+            <p>
+                <button type="submit">{{ 'Verify'|trans({}, 'iq2i_herse') }}</button>
+                <a href="{{ logoutPath }}">{{ 'Cancel'|trans({}, 'iq2i_herse') }}</a>
+            </p>
+        {% endblock %}
+    </form>
+{% endblock %}

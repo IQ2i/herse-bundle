@@ -47,7 +47,28 @@ final class SecondFactorThrottler
 
     public function onAttempt(TwoFactorAuthenticationEvent $event): void
     {
-        $limit = $this->limiter($event)->consume(0);
+        $this->assertAllowed($this->firewall($event), $event->getToken()->getUserIdentifier());
+    }
+
+    public function onFailure(TwoFactorAuthenticationEvent $event): void
+    {
+        $user = $event->getToken()->getUser();
+        $this->recordFailure($this->firewall($event), $event->getToken()->getUserIdentifier(), $user, $event->getRequest()->getClientIp());
+    }
+
+    public function onSuccess(TwoFactorAuthenticationEvent $event): void
+    {
+        $this->reset($this->firewall($event), $event->getToken()->getUserIdentifier());
+    }
+
+    /**
+     * The codes checked outside of the login, as on the enrollment screen, share the attempts of the login.
+     *
+     * @throws TooManyLoginAttemptsAuthenticationException when the user has no attempt left
+     */
+    public function assertAllowed(string $firewall, string $userIdentifier): void
+    {
+        $limit = $this->limiter($firewall, $userIdentifier)->consume(0);
         // Peeking is accepted even when no token is left, depending on the version of the Rate Limiter.
         if (!$limit->isAccepted() || 0 === $limit->getRemainingTokens()) {
             // The retry time is rounded up to the second and time() down: one second of the difference is only rounding.
@@ -55,30 +76,24 @@ final class SecondFactorThrottler
         }
     }
 
-    public function onFailure(TwoFactorAuthenticationEvent $event): void
+    public function recordFailure(string $firewall, string $userIdentifier, ?object $user, ?string $ip): void
     {
-        $limit = $this->limiter($event)->consume(1);
-        if (!$limit->isAccepted() || 0 !== $limit->getRemainingTokens()) {
+        $limit = $this->limiter($firewall, $userIdentifier)->consume(1);
+        if (!$limit->isAccepted() || 0 !== $limit->getRemainingTokens() || null === $user) {
             return;
         }
 
-        $user = $event->getToken()->getUser();
-        if (null === $user) {
-            return;
-        }
-
-        $request = $event->getRequest();
-        $this->dispatcher->dispatch(new TwoFactorThrottledEvent($this->users->reference($user), $user, $this->firewall($event), $request->getClientIp()));
+        $this->dispatcher->dispatch(new TwoFactorThrottledEvent($this->users->reference($user), $user, $firewall, $ip));
     }
 
-    public function onSuccess(TwoFactorAuthenticationEvent $event): void
+    public function reset(string $firewall, string $userIdentifier): void
     {
-        $this->limiter($event)->reset();
+        $this->limiter($firewall, $userIdentifier)->reset();
     }
 
-    private function limiter(TwoFactorAuthenticationEvent $event): LimiterInterface
+    private function limiter(string $firewall, string $userIdentifier): LimiterInterface
     {
-        return $this->factory->create(LimiterKey::hash($this->secret, $this->firewall($event), $event->getToken()->getUserIdentifier()));
+        return $this->factory->create(LimiterKey::hash($this->secret, $firewall, $userIdentifier));
     }
 
     private function firewall(TwoFactorAuthenticationEvent $event): string
