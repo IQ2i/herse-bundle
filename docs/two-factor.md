@@ -219,7 +219,9 @@ account once a first code proved the app has it. Until then the secret only live
 - **Mandatory by default**: scheb asks nothing of an account without a secret. With `required: true`, such an
   account is redirected to the screen from every page of the firewall until it enrolled; it can still log out.
   `required: false` leaves the enrollment to the user: link to the route from your account page.
-- **Where it leads**: `iq2i_herse.firewalls.<name>.home`, a path or a route name, the path prefix by default.
+- **Where it leads**: `iq2i_herse.firewalls.<name>.home`, a path or a route name, the path prefix by default. The
+  second factor form leads there too when the user asked for no page before (a direct visit of the login page);
+  a `default_target_path` set under the `two_factor` key of the firewall wins.
 - **QR code**: drawn on the server, as an inline SVG, with `bacon/bacon-qr-code` (which `endroid/qr-code` installs
   too). Without it, the screen only shows the key. Alias `IQ2i\HerseBundle\TwoFactor\QrCode\QrCodeRendererInterface`
   to your own service to draw it another way.

@@ -117,5 +117,6 @@ What 0.2 lets you delete, once the firewalls are declared under `iq2i_herse.fire
 
 Switching the second factor to the routes of the bundle changes the names of the routes (`auth_form_path`,
 `check_path`) and adds `enable_csrf: true`: the container compilation tells what is missing in `security.yaml`. The
-columns of the traits are `email_auth_code` and `totp_secret`: keep the name of an existing column with an
-`#[ORM\AttributeOverride]`, or rename it in a migration.
+columns of the traits are `email_auth_code` (a nullable `VARCHAR(255)`) and `totp_secret`: keep the name or the
+definition of an existing column, a shorter `email_auth_code` for instance, with an `#[ORM\AttributeOverride]`, or
+change it in a migration.

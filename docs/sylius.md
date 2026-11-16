@@ -122,6 +122,21 @@ security:
 The limits of the two firewalls are separate. The `api_admin` and `api_shop` firewalls can have the same line: they
 are not covered by the tests.
 
+The login page of the administration translates the error without the parameters of the exception, nor the `security`
+domain: a blocked user reads the English message with a raw `%minutes%`. The shop page is right. Override the template
+of Sylius in your project:
+
+```twig
+{# templates/bundles/SyliusAdminBundle/security/login/page/content/form/error.html.twig #}
+{% set last_error = hookable_metadata.context.last_error|default(null) %}
+
+{% if last_error is not null %}
+    <div class="alert alert-danger" {{ sylius_test_html_attribute('invalid-credentials-message') }}>
+        {{ last_error.messageKey|trans(last_error.messageData, 'security') }}
+    </div>
+{% endif %}
+```
+
 ## Trusted devices
 
 Watch the two firewalls:
@@ -135,8 +150,9 @@ iq2i_herse:
             shop: ~
 ```
 
-The cookies are `herse_device_admin` and `herse_device_shop`. Generate the migration of the
-`iq2i_herse_trusted_device` table with `bin/console doctrine:migrations:diff`. The `api_admin` and `api_shop`
+The cookies are `herse_device_admin` and `herse_device_shop`. The entity is only mapped, and its table
+`iq2i_herse_trusted_device` only proposed by `doctrine:schema:update`, once the feature is enabled. Generate the
+migration with `bin/console doctrine:migrations:diff`. The `api_admin` and `api_shop`
 firewalls authenticate with a token (JWT), so they are not covered: the registry relies on a browser cookie. The
 remember-me of Sylius refreshes a known device and never registers one.
 
@@ -203,7 +219,9 @@ security:
         - { path: "%sylius.security.admin_regex%", role: ROLE_ADMINISTRATION_ACCESS }
 ```
 
-The rest is described in the [two-factor guide](two-factor.md). The test suite covers the administration; the shop
+After a valid code, the user is led to the page they asked for, or else to the `home` of the firewall: no
+`default_target_path` is needed (add `home: sylius_admin_dashboard` to the `admin` firewall under `iq2i_herse.firewalls`
+to lead to the dashboard). The rest is described in the [two-factor guide](two-factor.md). The test suite covers the administration; the shop
 firewall is left without second factor there.
 
 ## Screens
