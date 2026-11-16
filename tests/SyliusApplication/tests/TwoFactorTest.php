@@ -74,6 +74,16 @@ final class TwoFactorTest extends SyliusKernelTestCase
         self::assertCount(2, $this->mails(), 'The code, then the new device warning.');
     }
 
+    public function testTheCodeLeadsToTheHomeOfTheFirewallWhenNoPageWasRequested(): void
+    {
+        $this->createAdmin();
+        $this->loginAsAdmin();
+
+        $response = $this->submitCode($this->emailedCode());
+
+        self::assertSame('http://localhost/admin/private', $response->headers->get('Location'));
+    }
+
     public function testAWrongCodeIsRefused(): void
     {
         $this->createAdmin();

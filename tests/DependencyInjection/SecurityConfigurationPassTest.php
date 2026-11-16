@@ -203,6 +203,59 @@ final class SecurityConfigurationPassTest extends TestCase
         (new SecurityConfigurationPass())->process($this->secondFactorContainer(options: null, firewall: ['two_factor' => false]));
     }
 
+    /**
+     * @param array<string, mixed> $firewall
+     */
+    #[DataProvider('provideTheHomeOfTheFirewall')]
+    public function testTheSecondFactorLeadsToTheHomeOfTheFirewallByDefault(array $firewall, string $pathPrefix, string $expected): void
+    {
+        $container = $this->secondFactorContainer(options: self::OPTIONS + ['default_target_path' => '/'], pathPrefix: $pathPrefix, firewall: $firewall);
+
+        (new SecurityConfigurationPass())->process($container);
+
+        $options = $container->getDefinition('security.firewall_config.two_factor.main')->getArgument(0);
+        self::assertIsArray($options);
+        self::assertSame($expected, $options['default_target_path']);
+        self::assertTrue($options['enable_csrf']);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string, string}>
+     */
+    public static function provideTheHomeOfTheFirewall(): iterable
+    {
+        yield 'the home, a route' => [['home' => 'sylius_admin_dashboard'], '/admin', 'sylius_admin_dashboard'];
+        yield 'the home, a path' => [['home' => '/admin/dashboard'], '/admin', '/admin/dashboard'];
+        yield 'the path prefix' => [[], '/admin', '/admin'];
+        yield 'the root' => [[], '', '/'];
+    }
+
+    public function testAnExplicitTargetPathOfTheSecondFactorIsKept(): void
+    {
+        $container = $this->secondFactorContainer(
+            options: self::OPTIONS + ['default_target_path' => '/dashboard'],
+            firewall: ['home' => 'home'],
+            security: ['firewalls' => ['main' => ['two_factor' => ['default_target_path' => '/dashboard']]]],
+        );
+
+        (new SecurityConfigurationPass())->process($container);
+
+        $options = $container->getDefinition('security.firewall_config.two_factor.main')->getArgument(0);
+        self::assertIsArray($options);
+        self::assertSame('/dashboard', $options['default_target_path']);
+    }
+
+    public function testTheTargetPathIsLeftAloneWhenTheFirewallIsLeftOutOfTheSecondFactor(): void
+    {
+        $container = $this->secondFactorContainer(options: self::OPTIONS + ['default_target_path' => '/'], firewall: ['two_factor' => false, 'home' => 'home']);
+
+        (new SecurityConfigurationPass())->process($container);
+
+        $options = $container->getDefinition('security.firewall_config.two_factor.main')->getArgument(0);
+        self::assertIsArray($options);
+        self::assertSame('/', $options['default_target_path']);
+    }
+
     private const OPTIONS = ['auth_form_path' => 'iq2i_herse_main_two_factor_form', 'check_path' => 'iq2i_herse_main_two_factor_check', 'enable_csrf' => true];
 
     /**

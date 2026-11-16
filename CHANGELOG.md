@@ -7,6 +7,9 @@ The changes of each release. A change of behaviour is marked **BC**.
 - **BC** The entity `TrustedDevice` moves to `IQ2i\HerseBundle\TrustedDevice\Entity`. With the `auto_mapping` of
   Doctrine (Symfony recipe, Sylius), its table was proposed to every project, even without the trusted devices. The
   table and the columns do not change: no migration.
+- Once the second factor is passed without a requested page (a direct visit of the login page), the user is led to
+  the `home` of the firewall (its path prefix by default) instead of `/`. A `default_target_path` set under the
+  `two_factor` key of the firewall is kept.
 - `two_factor.issuer` sets the name shown in the authenticator app, from an environment variable if needed. It
   defaults to `mailer.app_name`.
 - A second factor code that was accepted is refused a second time while it is still valid

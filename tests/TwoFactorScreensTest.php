@@ -66,6 +66,17 @@ final class TwoFactorScreensTest extends TwoFactorKernelTestCase
         $this->assertLoggedIn();
     }
 
+    public function testAfterTheCodeEachFirewallLeadsToItsHome(): void
+    {
+        $this->account();
+        $this->passwordStep();
+        self::assertSame('http://localhost/', $this->submit('/2fa', $this->emailedCode())->headers->get('Location'));
+
+        $this->closeSession();
+        $this->passwordStep('/admin');
+        self::assertSame('http://localhost/admin', $this->submit('/admin/2fa', $this->emailedCode())->headers->get('Location'));
+    }
+
     public function testACodeSubmittedWithoutTheCsrfTokenIsRefused(): void
     {
         $this->account();

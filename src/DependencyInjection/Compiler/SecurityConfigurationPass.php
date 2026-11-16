@@ -39,12 +39,16 @@ final class SecurityConfigurationPass implements CompilerPassInterface
             return;
         }
 
-        /** @var array<string, array{path_prefix: string, login_throttling: bool, two_factor: bool, verify: bool}> $firewalls */
+        /** @var array<string, array{path_prefix: string, home: string|null, login_throttling: bool, two_factor: bool, verify: bool}> $firewalls */
         $firewalls = $container->getParameter('iq2i_herse.firewalls');
         /** @var array<string, bool> $features */
         $features = $container->getParameter('iq2i_herse.features');
 
         foreach ($firewalls as $name => $firewall) {
+            if ($features['two_factor'] && $firewall['two_factor']) {
+                $this->leadToHome($container, $name, $firewall['home'] ?? ('' === $firewall['path_prefix'] ? '/' : $firewall['path_prefix']));
+            }
+
             if (!$firewall['verify']) {
                 continue;
             }
@@ -61,6 +65,28 @@ final class SecurityConfigurationPass implements CompilerPassInterface
                 $this->assertSecondFactor($container, $name, $firewall['path_prefix']);
             }
         }
+    }
+
+    /**
+     * Without a target path in the session (a direct visit of the login page), scheb leads to "/", which is not the
+     * home of the firewall. An explicit "default_target_path" of the project is kept.
+     */
+    private function leadToHome(ContainerBuilder $container, string $firewall, string $home): void
+    {
+        $config = 'security.firewall_config.two_factor.'.$firewall;
+        $raw = $this->rawFirewall($container, $firewall)['two_factor'] ?? null;
+        if (!$container->hasDefinition($config) || (\is_array($raw) && isset($raw['default_target_path']))) {
+            return;
+        }
+
+        $definition = $container->getDefinition($config);
+        $options = $definition->getArgument(0);
+        if (!\is_array($options)) {
+            return;
+        }
+
+        $options['default_target_path'] = $home;
+        $definition->replaceArgument(0, $options);
     }
 
     private function assertLoginLimiter(ContainerBuilder $container, string $firewall): void
