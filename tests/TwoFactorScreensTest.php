@@ -15,6 +15,9 @@ namespace IQ2i\HerseBundle\Tests;
 
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\EmailAccount;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Security\Core\Exception\TooManyLoginAttemptsAuthenticationException;
+use Symfony\Contracts\Translation\LocaleAwareInterface;
+use Twig\Environment;
 
 /**
  * The project wrote no route, no template and no entity method: the routes, the form and the trait are the ones of the bundle.
@@ -82,6 +85,26 @@ final class TwoFactorScreensTest extends TwoFactorKernelTestCase
 
         self::assertStringContainsString('role="alert"', (string) $this->send('GET', '/2fa')->getContent());
         self::assertSame(302, $this->visitPrivatePage()->getStatusCode());
+    }
+
+    public function testAnErrorOfSymfonyIsTranslatedOnTheForm(): void
+    {
+        $error = new TooManyLoginAttemptsAuthenticationException(15);
+        $this->service(LocaleAwareInterface::class, 'translator')->setLocale('fr');
+
+        $html = $this->service(Environment::class, 'twig')->render('@IQ2iHerse/two_factor/_form.html.twig', [
+            'checkPathUrl' => '/2fa_check',
+            'twoFactorProvider' => 'totp',
+            'authenticationError' => $error->getMessageKey(),
+            'authenticationErrorData' => $error->getMessageData(),
+            'authCodeParameterName' => '_auth_code',
+            'displayTrustedOption' => false,
+            'isCsrfProtectionEnabled' => false,
+            'logoutPath' => '/logout',
+        ]);
+
+        self::assertStringContainsString('veuillez réessayer dans 15 minutes.', $html);
+        self::assertStringNotContainsString('Too many failed login attempts', $html);
     }
 
     public function testTheFormIsClosedToAVisitorWhoDidNotLogIn(): void

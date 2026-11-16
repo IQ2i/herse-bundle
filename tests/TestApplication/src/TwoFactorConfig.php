@@ -50,6 +50,7 @@ final class TwoFactorConfig
             'cache' => ['pools' => ['herse_two_factor_throttling' => ['adapter' => 'cache.adapter.filesystem']]],
         ]);
         $container->services()->alias('test.two_factor_throttling.cache', 'herse_two_factor_throttling')->public();
+        $container->services()->alias('test.two_factor_code_reuse.cache', 'cache.app')->public();
         $container->extension('security', ['access_control' => [
             ['path' => '^/2fa', 'roles' => 'IS_AUTHENTICATED_2FA_IN_PROGRESS'],
             ['path' => '^/private', 'roles' => 'IS_AUTHENTICATED_FULLY'],

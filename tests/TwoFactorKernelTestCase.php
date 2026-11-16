@@ -61,6 +61,7 @@ abstract class TwoFactorKernelTestCase extends DoctrineKernelTestCase
         parent::setUp();
 
         $this->service(CacheItemPoolInterface::class, 'test.two_factor_throttling.cache')->clear();
+        $this->forgetAcceptedCodes();
         $this->cookies = [];
         $this->sentMails = [];
         $this->deviceEvents = [];
@@ -165,6 +166,14 @@ abstract class TwoFactorKernelTestCase extends DoctrineKernelTestCase
         \assert('' !== $secret);
 
         return $secret;
+    }
+
+    /**
+     * As when the authenticator app moved on to its next code: the one that was accepted is refused until then.
+     */
+    protected function forgetAcceptedCodes(): void
+    {
+        $this->service(CacheItemPoolInterface::class, 'test.two_factor_code_reuse.cache')->clear();
     }
 
     /**

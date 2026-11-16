@@ -13,7 +13,9 @@
 
         {% block herse_two_factor_error %}
             {% if authenticationError %}
-                <p role="alert" class="herse-error">{{ authenticationError|trans(authenticationErrorData, 'SchebTwoFactorBundle') }}</p>
+                {# The errors scheb does not know, as the throttling one, are the ones of Symfony. #}
+                {% set errorDomain = authenticationError|trans({}, 'SchebTwoFactorBundle') == authenticationError ? 'security' : 'SchebTwoFactorBundle' %}
+                <p role="alert" class="herse-error">{{ authenticationError|trans(authenticationErrorData, errorDomain) }}</p>
             {% endif %}
         {% endblock %}
 

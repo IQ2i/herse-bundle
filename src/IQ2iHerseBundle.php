@@ -142,7 +142,7 @@ final class IQ2iHerseBundle extends AbstractBundle
                             ->cannotBeEmpty()
                         ->end()
                         ->scalarNode('theme')
-                            ->info('Directory of templates replacing the ones of the bundle on this firewall, e.g. "herse/admin" or "@IQ2iHerse/bridge/sylius/admin". A template missing from it falls back on the bundle.')
+                            ->info('Directory of templates replacing the ones of the bundle on this firewall, e.g. "herse/admin". A template missing from it falls back on the bundle.')
                             ->defaultNull()
                             ->cannotBeEmpty()
                         ->end()

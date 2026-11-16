@@ -9,7 +9,7 @@ PHP = $(PHP_CONT) php
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY        = help build logs php install ci static cs-fix test coverage sylius-install sylius-test
+.PHONY: help build logs php install ci static cs-fix test coverage sylius-install sylius-test
 
 ## —— Help 🐳 🎵 ———————————————————————————————————————————————————————————————
 help: ## Outputs this help screen

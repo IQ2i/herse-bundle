@@ -155,6 +155,7 @@ final class TrustedDevicesScreenTest extends TwoFactorKernelTestCase
     {
         $this->logInWith('alice@example.com', self::CHROME);
         $this->cookies = [];
+        $this->forgetAcceptedCodes();
         $this->logInWith('alice@example.com', self::FIREFOX);
     }
 

@@ -36,6 +36,7 @@ use IQ2i\HerseBundle\TwoFactor\TwoFactorResetLink;
 use IQ2i\HerseBundle\TwoFactor\TwoFactorResetter;
 use IQ2i\HerseBundle\User\UserLoader;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
+use Scheb\TwoFactorBundle\Security\Http\EventListener\CheckTwoFactorCodeReuseListener;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Email\EmailTwoFactorProvider;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Totp\TotpAuthenticator;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Trusted\TrustedDeviceManager as SchebTrustedDeviceManager;
@@ -90,6 +91,10 @@ final class TwoFactorFeature
                         ->thenInvalid('%s is not a valid interval.')
                     ->end()
                 ->end()
+                ->scalarNode('code_reuse_cache')
+                    ->info('Cache pool remembering the accepted codes, which are refused a second time while they are still valid. Shared between the servers of the application. Null to accept them again. Requires scheb/2fa-bundle 7.10 or later.')
+                    ->defaultValue('cache.app')
+                ->end()
             ->end()
         ;
 
@@ -104,6 +109,10 @@ final class TwoFactorFeature
             ->validate()
                 ->ifTrue(static fn (array $twoFactor): bool => $twoFactor['enabled'] && !isset($twoFactor['method']))
                 ->thenInvalid('iq2i_herse.two_factor.method is required: "email" or "totp".')
+            ->end()
+            ->validate()
+                ->ifTrue(static fn (array $twoFactor): bool => $twoFactor['enabled'] && 'email' === ($twoFactor['method'] ?? null) && null !== $twoFactor['reset_role'])
+                ->thenInvalid('iq2i_herse.two_factor.reset_role requires the "totp" method: there is no authenticator app to reset with "email".')
             ->end()
         ;
     }
@@ -318,6 +327,12 @@ final class TwoFactorFeature
 
         if ($bridge) {
             $defaults['trusted_device'] = ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager'];
+        }
+
+        // scheb knows the option from 7.10 only.
+        $codeReuseCache = \array_key_exists('code_reuse_cache', $twoFactor) ? $twoFactor['code_reuse_cache'] : 'cache.app';
+        if (\is_string($codeReuseCache) && '' !== $codeReuseCache && class_exists(CheckTwoFactorCodeReuseListener::class)) {
+            $defaults['code_reuse_cache'] = $codeReuseCache;
         }
 
         $builder->prependExtensionConfig('scheb_two_factor', $defaults);

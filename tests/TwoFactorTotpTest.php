@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace IQ2i\HerseBundle\Tests;
 
 use OTPHP\TOTP;
+use Scheb\TwoFactorBundle\Security\Http\EventListener\CheckTwoFactorCodeReuseListener;
 
 final class TwoFactorTotpTest extends TwoFactorKernelTestCase
 {
@@ -44,6 +45,25 @@ final class TwoFactorTotpTest extends TwoFactorKernelTestCase
 
         $this->assertSecondFactorAsked($this->submitCode('123456'));
 
+        $this->assertSecondFactorAsked($this->visitPrivatePage());
+    }
+
+    public function testACodeThatOpenedASessionIsRefusedTheSecondTime(): void
+    {
+        if (!class_exists(CheckTwoFactorCodeReuseListener::class)) {
+            self::markTestSkipped('scheb/2fa-bundle remembers the accepted codes from 7.10 only.');
+        }
+
+        $this->twoFactorAccount(emailAuth: false, totpSecret: self::SECRET);
+        $code = TOTP::createFromSecret(self::SECRET)->now();
+        $this->signIn();
+        $this->submitCode($code);
+        $this->assertLoggedIn();
+
+        $this->closeSession();
+        $this->signIn();
+
+        $this->assertSecondFactorAsked($this->submitCode($code));
         $this->assertSecondFactorAsked($this->visitPrivatePage());
     }
 

@@ -31,6 +31,7 @@ iq2i_herse:
         required: true         # default: with totp, a user without authenticator app must enroll one
         trusted_devices: false # a trusted device skips the second factor, requires trusted_devices
         trusted_lifetime: '30 days' # how long a trusted device skips it, counted from its verification
+        code_reuse_cache: cache.app # remembers the accepted codes, must be shared between servers; null to disable
         throttling:            # wrong second factors allowed to a user, enabled by default
             limit: 5
             interval: '15 minutes'
@@ -47,6 +48,11 @@ are prepared before the container resolves them.
   always wins. `email`: the code is sent by the bundle and has 6 digits. `totp`: the issuer is `mailer.app_name`.
   Both: the code form is the one of the bundle. `trusted_devices`: the trusted device manager of scheb is the one of
   the bundle. No `scheb_2fa.yaml` is needed.
+- **A code is accepted once**: an accepted code is remembered in `code_reuse_cache` for a minute and refused a second
+  time, so a code read over a shoulder or intercepted opens nothing more while the authenticator app still shows it.
+  A user logging in on a second device waits for the next code. The pool must be shared between the servers of the
+  application; your own `scheb_two_factor.code_reuse_cache` wins, and `code_reuse_cache: null` turns it off. It needs
+  `scheb/2fa-bundle` 7.10 or later: nothing is remembered with an older one.
 - **Routes, code form and entity traits**: see below.
 - **Email method**: the code is sent with the email service of the bundle (template
   `@IQ2iHerse/email/two_factor_code.html.twig`, sender and translations of the [emails](emails.md)) to the address
@@ -298,6 +304,7 @@ final class DashboardTest extends WebTestCase
     public function testTheDashboard(): void
     {
         $client = static::createClient();
+        $alice = static::getContainer()->get(UserRepository::class)->findOneBy(['email' => 'alice@example.com']);
         $client->request('GET', '/login');
         $client->submitForm('Sign in', ['_username' => 'alice@example.com', '_password' => 'Sup3r-secret!']);
 

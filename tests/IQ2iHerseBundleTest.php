@@ -54,6 +54,7 @@ use IQ2i\HerseBundle\Validator\Mapping\PasswordPolicyLoader;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
+use Scheb\TwoFactorBundle\Security\Http\EventListener\CheckTwoFactorCodeReuseListener;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
@@ -797,6 +798,13 @@ final class IQ2iHerseBundleTest extends TestCase
         $this->load(['two_factor' => true]);
     }
 
+    public function testTheResetRoleIsRejectedWithTheEmailMethod(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.two_factor.reset_role requires the "totp" method');
+
+        $this->load(['two_factor' => ['method' => 'email', 'reset_role' => 'ROLE_ADMIN'], 'mailer' => ['sender' => 'no-reply@example.com']]);
+    }
+
     public function testAnUnknownSecondFactorMethodIsRejected(): void
     {
         $this->expectExceptionMessage('"sms"');
@@ -965,8 +973,8 @@ final class IQ2iHerseBundleTest extends TestCase
     }
 
     /**
-     * @param list<array<string, mixed>>          $configs
-     * @param array<string, array<string, mixed>> $expected
+     * @param list<array<string, mixed>> $configs
+     * @param array<string, mixed>       $expected
      */
     #[DataProvider('provideTheSchebDefaults')]
     public function testSchebReceivesTheDefaultsOfTheMethod(array $configs, array $expected): void
@@ -989,20 +997,25 @@ final class IQ2iHerseBundleTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{list<array<string, mixed>>, array<string, array<string, mixed>>}>
+     * @return iterable<string, array{list<array<string, mixed>>, array<string, mixed>}>
      */
     public static function provideTheSchebDefaults(): iterable
     {
+        // From scheb 7.10 only.
+        $known = class_exists(CheckTwoFactorCodeReuseListener::class);
+        $reuse = $known ? ['code_reuse_cache' => 'cache.app'] : [];
         $email = ['email' => ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6, 'template' => '@IQ2iHerse/two_factor/form.html.twig']];
         $totp = ['enabled' => true, 'template' => '@IQ2iHerse/two_factor/form.html.twig'];
 
-        yield 'email' => [[['two_factor' => ['method' => 'email']]], $email];
-        yield 'email enabled by its method only' => [[['two_factor' => ['enabled' => true, 'method' => 'email']]], $email];
-        yield 'totp without application name' => [[['two_factor' => ['method' => 'totp']]], ['totp' => $totp]];
-        yield 'totp with the application name as issuer' => [[['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']]];
-        yield 'the last application name wins' => [[['mailer' => ['app_name' => 'Old']], ['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']]];
-        yield 'with the device bridge' => [[['two_factor' => ['method' => 'email', 'trusted_devices' => true]]], $email + ['trusted_device' => ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager']]];
-        yield 'the method of the last configuration wins' => [[['two_factor' => ['method' => 'email']], ['two_factor' => ['method' => 'totp']]], ['totp' => $totp]];
+        yield 'email' => [[['two_factor' => ['method' => 'email']]], $email + $reuse];
+        yield 'email enabled by its method only' => [[['two_factor' => ['enabled' => true, 'method' => 'email']]], $email + $reuse];
+        yield 'totp without application name' => [[['two_factor' => ['method' => 'totp']]], ['totp' => $totp] + $reuse];
+        yield 'totp with the application name as issuer' => [[['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']] + $reuse];
+        yield 'the last application name wins' => [[['mailer' => ['app_name' => 'Old']], ['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']] + $reuse];
+        yield 'with the device bridge' => [[['two_factor' => ['method' => 'email', 'trusted_devices' => true]]], $email + ['trusted_device' => ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager']] + $reuse];
+        yield 'the method of the last configuration wins' => [[['two_factor' => ['method' => 'email']], ['two_factor' => ['method' => 'totp']]], ['totp' => $totp] + $reuse];
+        yield 'another pool remembers the accepted codes' => [[['two_factor' => ['method' => 'totp', 'code_reuse_cache' => 'cache.shared']]], ['totp' => $totp] + ($known ? ['code_reuse_cache' => 'cache.shared'] : [])];
+        yield 'the accepted codes are not remembered' => [[['two_factor' => ['method' => 'totp', 'code_reuse_cache' => null]]], ['totp' => $totp]];
         yield 'disabled' => [[['two_factor' => false]], []];
         yield 'disabled by a later configuration' => [[['two_factor' => ['method' => 'email']], ['two_factor' => false]], []];
         yield 'no method' => [[['two_factor' => true]], []];

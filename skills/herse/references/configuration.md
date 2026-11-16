@@ -93,6 +93,7 @@ iq2i_herse:
         reset_role: ~                       # totp: the role allowed to reset the second factor of a user on the screen of the bundle
         trusted_devices: false
         trusted_lifetime: '30 days'
+        code_reuse_cache: cache.app         # pool remembering the accepted codes, refused a second time; null to disable
         throttling:
             enabled: true
             limit: 5
@@ -174,6 +175,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 - `security.yaml` stays written by the project and is checked, see `firewalls`.
 - TOTP enrollment: route `iq2i_herse_<firewall>_two_factor_setup` (`<path_prefix>/second-factor/setup`), provided with its screen. With `required: true` (default) a user of a declared firewall without a secret is redirected to it from every page; with `false`, link to it. The secret is stored once a first code is accepted. QR code with `bacon/bacon-qr-code` (the key alone without it). Leads to `firewalls.<name>.home`. Never write an enrollment controller, a "pending secret" class or a redirect listener.
 - `trusted_devices: true` requires the `trusted_devices` feature, with the firewall watched there. The cookie and lifetime options of scheb then have no effect; `trusted_lifetime` counts from the verification and is not extended by logins.
+- `code_reuse_cache`: an accepted code is refused a second time while it is still valid (a user logging in on a second device waits for the next code). The pool must be shared between servers. Needs `scheb/2fa-bundle` 7.10 or later. Never set it to null to make a test pass: wait for, or compute, the next code.
 - `throttling`: wrong second factors per user and firewall, whatever the IP. `throttling: false` removes it, only when the project brings its own. The login throttling cannot replace it.
 - `enabled`, `method` and `trusted_devices` must be literal values, not environment variables.
 - No backup codes. A lost authenticator app is reset (the user enrolls again, their trusted devices are revoked): `bin/console iq2i:herse:reset-two-factor <email> [--type=]`; with `reset_role`, the screen `iq2i_herse_<firewall>_two_factor_reset` (`<path_prefix>/second-factor/reset/{type}/{id}`, optional `back` path) for the users having that role; or `IQ2i\HerseBundle\TwoFactor\TwoFactorResetter::reset($user, by: $admin)`. With EasyAdmin, inject `IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction` in the CRUD controller and add `->create()` to its actions. Never write a reset command, service or controller.
@@ -186,6 +188,7 @@ The compilation fails with a message naming the fix:
 - `iq2i_herse.users: "plain_password" requires iq2i_herse.password_policy to be enabled.`
 - `iq2i_herse.two_factor.method is required: "email" or "totp".`
 - `iq2i_herse.two_factor.trusted_devices requires iq2i_herse.trusted_devices to be enabled.`
+- `iq2i_herse.two_factor.reset_role requires the "totp" method`: remove `reset_role` with `method: email`.
 - `iq2i_herse.two_factor requires … Try running "composer require …"`, and the same for each feature missing a package.
 - `iq2i_herse.password_policy: max_length must be greater than or equal to min_length.`
 - `iq2i_herse.firewalls: the firewall "…" is not declared in the security configuration.`
