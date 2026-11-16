@@ -2,7 +2,7 @@
 
 The changes of each release. A change of behaviour is marked **BC**.
 
-## Unreleased
+## 0.3.0 - 2026-11-16
 
 - **BC** The entity `TrustedDevice` moves to `IQ2i\HerseBundle\TrustedDevice\Entity`. With the `auto_mapping` of
   Doctrine (Symfony recipe, Sylius), its table was proposed to every project, even without the trusted devices. The
