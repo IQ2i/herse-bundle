@@ -1,0 +1,7 @@
+security:
+    firewalls:
+        moka:
+            two_factor:
+                auth_form_path: iq2i_herse_moka_two_factor
+                check_path: iq2i_herse_moka_two_factor_check
+                prepare_on_login: true

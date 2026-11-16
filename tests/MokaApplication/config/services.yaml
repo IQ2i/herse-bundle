@@ -1,0 +1,4 @@
+services:
+    test.herse_rate_limiter.public:
+        alias: test.herse_rate_limiter
+        public: true

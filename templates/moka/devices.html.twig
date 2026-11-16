@@ -1,0 +1,40 @@
+{% extends '@MokaCms/admin/layout.html.twig' %}
+
+{% trans_default_domain 'iq2i_herse' %}
+
+{% block header_title %}{{ 'My devices'|trans }}{% endblock %}
+
+{% block content %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>{{ 'Device'|trans }}</th>
+                <th>{{ 'Last used'|trans }}</th>
+                <th>{{ 'Expires'|trans }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in devices %}
+                <tr>
+                    <td>
+                        {{ row.device.label ?? 'Unknown device'|trans }}
+                        {% if row.current %}<span class="badge bg-info">{{ 'This device'|trans }}</span>{% endif %}
+                    </td>
+                    <td>{{ row.device.lastUsedAt|date('Y-m-d H:i') }}</td>
+                    <td>{{ row.device.expiresAt|date('Y-m-d') }}</td>
+                    <td>
+                        <form method="post" action="{{ path('iq2i_herse_moka_device_revoke', {id: row.device.id}) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('iq2i_herse_revoke_device_' ~ row.device.id) }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">{{ 'Revoke'|trans }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">{{ 'No device.'|trans }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

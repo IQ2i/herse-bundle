@@ -1,0 +1,25 @@
+moka_cms:
+  components:
+    seo:
+      label: Seo
+      fields:
+        title:
+          label: Metatitle
+          widget: text
+        description:
+          label: Metadescription
+          widget: textarea
+        canonical:
+          label: Canonical
+          widget: dynamiclink
+        metarobot:
+          label: Meta Robot
+          widget: enumeration
+          options:
+            values:
+              all : All
+              noindex: No index
+              nofollow: No follow
+              "index, nofollow": Index, No follow
+              "noindex, follow": No index, Follow
+              "noindex, nofollow": No index, No follow

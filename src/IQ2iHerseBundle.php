@@ -13,6 +13,8 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle;
 
+use IQ2i\HerseBundle\Bridge\Moka\DependencyInjection\MokaBridge;
+use IQ2i\HerseBundle\Bridge\Moka\DependencyInjection\MokaUserClassPass;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\PasswordPolicyLoaderPass;
 use IQ2i\HerseBundle\DependencyInjection\Compiler\SecurityConfigurationPass;
 use IQ2i\HerseBundle\DependencyInjection\Feature\LoginThrottlingFeature;
@@ -198,6 +200,7 @@ final class IQ2iHerseBundle extends AbstractBundle
         TrustedDevicesFeature::configure($children->arrayNode('trusted_devices')->canBeEnabled());
         PasswordChangeNotificationFeature::configure($children->arrayNode('password_change_notification')->canBeEnabled());
         TwoFactorFeature::configure($children->arrayNode('two_factor')->canBeEnabled());
+        MokaBridge::configure($children->arrayNode('moka')->canBeEnabled());
     }
 
     public function build(ContainerBuilder $container): void
@@ -206,6 +209,7 @@ final class IQ2iHerseBundle extends AbstractBundle
 
         $container->addCompilerPass(new PasswordPolicyLoaderPass());
         $container->addCompilerPass(new SecurityConfigurationPass());
+        $container->addCompilerPass(new MokaUserClassPass());
     }
 
     /**
@@ -219,6 +223,7 @@ final class IQ2iHerseBundle extends AbstractBundle
      *     trusted_devices: array{enabled: bool, screen: bool, firewalls: array<string, array{cookie_name: string|null, lifetime: string}>, store_ip: bool, notify_first_device: bool, notify_before_second_factor: bool, revoke_on_password_change: bool},
      *     password_change_notification: array{enabled: bool, notify_on_other_user: bool, notify_on_console: bool},
      *     two_factor: array{enabled: bool, method?: 'email'|'totp', required: bool, reset_role: string|null, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}},
+     *     moka: array{enabled: bool, firewall: string},
      * } $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -258,6 +263,10 @@ final class IQ2iHerseBundle extends AbstractBundle
         }
 
         SharedServices::loadUi($config, $container);
+
+        if ($config['moka']['enabled']) {
+            MokaBridge::load($config, $container, $builder);
+        }
     }
 
     /**
@@ -265,6 +274,8 @@ final class IQ2iHerseBundle extends AbstractBundle
      */
     public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        // First: the defaults of the bridge are part of what the features read below.
+        MokaBridge::prepend($builder, $builder->getExtensionConfig($this->extensionAlias));
         $configs = $builder->getExtensionConfig($this->extensionAlias);
 
         TrustedDevicesFeature::prepend($builder, $configs);

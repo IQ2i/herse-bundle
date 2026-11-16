@@ -1,0 +1,5 @@
+iq2i_herse:
+    two_factor:
+        enabled: true
+        method: email
+        trusted_devices: true

@@ -1,0 +1,5 @@
+services:
+    php:
+        volumes:
+            # The private MokaCMS sources, installed by tests/MokaApplication as a Composer path repository.
+            - ${MOKA_PATH:-../../MokaCMS/moka}:/srv/moka:ro

@@ -1,0 +1,42 @@
+moka_cms:
+  entries:
+    page:
+      label: Page
+      role: collection
+      routes:
+        page:
+          params: [ 'slug' ]
+      fields:
+        title:
+          label: Title
+          section: Header
+          widget: text
+          localizable: true
+          required: true
+        imageHeader:
+          label: Image header
+          section: Header
+          widget: media
+          required: true
+        body:
+          label: Body
+          section: Content
+          widget: matrix
+          localizable: true
+          options:
+            components:
+              - paragraph
+        slug:
+          label: Url identifier
+          section: Seo
+          widget: slug
+          localizable: true
+          required: true
+          unique: true
+        seo:
+          label: Seo
+          widget: component
+          section: Seo
+          localizable: true
+          options:
+            component: seo

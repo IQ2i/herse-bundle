@@ -1,0 +1,10 @@
+moka_cms:
+  media:
+    fields:
+#      credit:
+#        label: Credit
+#        widget: textarea
+#      summary:
+#        label: Summary
+#        help: Short description for lists
+#        widget: textarea

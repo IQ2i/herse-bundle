@@ -1,0 +1,22 @@
+iq2i_herse:
+    # Declares the user of Moka, takes the sender from "moka_cms.email_sender" and wires the features on its screens.
+    moka: true
+    mailer:
+        sender_name: Example
+    password_policy: true
+    login_throttling:
+        enabled: true
+        identifier_and_ip: { limit: 3, interval: '1 minute' }
+        ip: { limit: 5, interval: '1 minute' }
+        identifier: { enabled: true, limit: 4, interval: '15 minutes' }
+        cache_pool: test.herse_rate_limiter
+    trusted_devices: true
+    password_change_notification: true
+
+framework:
+    cache:
+        pools:
+            # Not an array adapter: the kernel resets it between two requests, which would clear the counters.
+            # The tests empty it, see the "test.herse_rate_limiter.public" alias.
+            test.herse_rate_limiter:
+                adapter: cache.adapter.filesystem

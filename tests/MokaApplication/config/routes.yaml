@@ -1,0 +1,24 @@
+homepage:
+    path:
+        fr_FR: /fr
+        en_US: /en
+    controller: Moka\Cms\Controller\EntryController::show
+    defaults:
+        _type: homepage
+
+page:
+    path:
+        fr_FR: /fr/{slug}
+        en_US: /en/{slug}
+    controller: Moka\Cms\Controller\EntryController::show
+    defaults:
+        _type: page
+
+herse_devices:
+    resource: '@IQ2iHerseBundle/config/routes/moka_devices.yaml'
+    prefix: /admin
+
+when@test_two_factor:
+    herse_two_factor:
+        resource: '@IQ2iHerseBundle/config/routes/moka_two_factor.yaml'
+        prefix: /admin

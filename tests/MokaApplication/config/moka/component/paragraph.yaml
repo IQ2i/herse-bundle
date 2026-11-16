@@ -1,0 +1,14 @@
+moka_cms:
+  components:
+    paragraph:
+      label: Paragraph
+      fields:
+        title:
+          label: Titre
+          widget: text
+          required: true
+        body:
+          label: Content
+          widget: textarea
+
+

@@ -1,0 +1,12 @@
+# Import with the prefix of the Moka administration, e.g. "/admin".
+iq2i_herse_moka_devices:
+    path: /devices
+    controller: IQ2i\HerseBundle\Bridge\Moka\Controller\DeviceController::index
+    methods: [GET]
+
+iq2i_herse_moka_device_revoke:
+    path: /devices/{id}/revoke
+    controller: IQ2i\HerseBundle\Bridge\Moka\Controller\DeviceController::revoke
+    methods: [POST]
+    requirements:
+        id: '\d+'

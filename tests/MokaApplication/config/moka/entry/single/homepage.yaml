@@ -1,0 +1,27 @@
+moka_cms:
+  entries:
+    homepage:
+      label: Homepage
+      role: single
+      routes: homepage
+      fields:
+        imageHeader:
+          label: Image header
+          widget: media
+          section: Header
+          required: true
+        body:
+          label: Body
+          section: Content
+          widget: matrix
+          localizable: true
+          options:
+            components:
+              - paragraph
+        seo:
+          label: Seo
+          widget: component
+          section: Seo
+          localizable: true
+          options:
+            component: seo

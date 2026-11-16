@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit backupGlobals="false"
+         backupStaticProperties="false"
+         bootstrap="vendor/autoload.php"
+         cacheDirectory=".phpunit.cache"
+         colors="true"
+         processIsolation="false"
+         failOnWarning="true"
+         failOnRisky="true"
+>
+  <php>
+    <!-- Without Monolog, the fallback logger of Symfony writes every debug line to the error output. -->
+    <server name="SHELL_VERBOSITY" value="-1"/>
+  </php>
+  <testsuites>
+    <testsuite name="Herse Bundle on MokaCMS">
+      <directory>tests</directory>
+    </testsuite>
+  </testsuites>
+</phpunit>

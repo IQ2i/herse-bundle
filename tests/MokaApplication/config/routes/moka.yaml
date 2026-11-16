@@ -1,0 +1,9 @@
+moka_admin:
+    resource: '@MokaCmsBundle/config/routing/admin.xml'
+    prefix: /admin
+
+moka_media:
+    resource: "@MokaCmsBundle/config/routing/media.xml"
+
+_liip_imagine:
+    resource: "@LiipImagineBundle/Resources/config/routing.yaml"

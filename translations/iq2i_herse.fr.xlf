@@ -214,6 +214,22 @@
                 <source>There was no other device to revoke.</source>
                 <target>Il n'y avait aucun autre appareil à révoquer.</target>
             </trans-unit>
+            <trans-unit id="moka.devices.expires">
+                <source>Expires</source>
+                <target>Expire le</target>
+            </trans-unit>
+            <trans-unit id="moka.devices.none">
+                <source>No device.</source>
+                <target>Aucun appareil.</target>
+            </trans-unit>
+            <trans-unit id="moka.two_factor.code">
+                <source>Code received by email</source>
+                <target>Code reçu par e-mail</target>
+            </trans-unit>
+            <trans-unit id="moka.user.two_factor">
+                <source>Two-factor authentication by email</source>
+                <target>Authentification à deux facteurs par e-mail</target>
+            </trans-unit>
         </body>
     </file>
 </xliff>

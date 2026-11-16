@@ -1,0 +1,11 @@
+imports:
+    - { resource: ../moka/*.yaml }
+    - { resource: ../moka/**/*.yaml }
+
+moka_cms:
+    locales: ['en_US', 'fr_FR']
+    user_roles:
+        ROLE_REDACTOR: Redactor
+        ROLE_ADMIN: Admin
+    email_sender: robot@example.com
+    site_name: Moka

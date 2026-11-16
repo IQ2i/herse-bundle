@@ -16,6 +16,7 @@
     <testsuite name="Herse Bundle Test Suite">
       <directory>tests</directory>
       <exclude>tests/SyliusApplication</exclude>
+      <exclude>tests/MokaApplication</exclude>
     </testsuite>
   </testsuites>
   <source>

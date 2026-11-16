@@ -18,5 +18,6 @@ RUN set -eux; \
     	intl \
         pcov \
         pcntl \
+        xsl \
     	zip \
     ;

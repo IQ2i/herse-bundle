@@ -1,0 +1,36 @@
+{% extends '@MokaCms/admin/security/layout.html.twig' %}
+
+{% trans_default_domain 'iq2i_herse' %}
+
+{% block title %}{{ 'Two-factor authentication'|trans }}{% endblock %}
+
+{% block content %}
+    <h1 class="h3 m-3 text-center">{{ 'Two-factor authentication'|trans }}</h1>
+
+    <form method="post" action="{{ checkPathUrl ? checkPathUrl : path(checkPathRoute) }}">
+        {% if authenticationError %}
+            <div class="alert alert-danger">{{ authenticationError|trans(authenticationErrorData, 'SchebTwoFactorBundle') }}</div>
+        {% endif %}
+
+        <div class="mb-3">
+            <label for="_auth_code" class="form-label">{{ 'Code received by email'|trans }}</label>
+            <input type="text" class="form-control" id="_auth_code" name="{{ authCodeParameterName }}" autocomplete="one-time-code" inputmode="numeric" required autofocus>
+        </div>
+
+        {% if displayTrustedOption %}
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="_trusted" name="{{ trustedParameterName }}">
+                <label class="form-check-label" for="_trusted">{{ 'Trust this device'|trans }}</label>
+            </div>
+        {% endif %}
+
+        {% if isCsrfProtectionEnabled %}
+            <input type="hidden" name="{{ csrfParameterName }}" value="{{ csrf_token(csrfTokenId) }}">
+        {% endif %}
+
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">{{ 'Verify'|trans }}</button>
+            <a class="text-center p-2" href="{{ logoutPath }}">{{ 'Cancel'|trans }}</a>
+        </div>
+    </form>
+{% endblock %}

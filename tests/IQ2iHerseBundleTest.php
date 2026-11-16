@@ -16,6 +16,7 @@ namespace IQ2i\HerseBundle\Tests;
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use IQ2i\HerseBundle\Bridge\EasyAdmin\ResetTwoFactorAction;
+use IQ2i\HerseBundle\Bridge\Moka\DependencyInjection\MokaUserClassPass;
 use IQ2i\HerseBundle\Command\PurgeTrustedDevicesCommand;
 use IQ2i\HerseBundle\Command\ResetTwoFactorCommand;
 use IQ2i\HerseBundle\Console\PasswordQuestionValidator;
@@ -1032,6 +1033,28 @@ final class IQ2iHerseBundleTest extends TestCase
         $extension->prepend($container);
 
         self::assertSame([], $container->getExtensionConfig('scheb_two_factor'));
+    }
+
+    public function testTheMokaBridgeDeclaresNothingWhileItIsDisabled(): void
+    {
+        $container = $this->load([]);
+
+        self::assertFalse($container->hasParameter(MokaUserClassPass::PARAMETER));
+        self::assertSame([], array_filter($container->getServiceIds(), static fn (string $id): bool => str_contains($id, 'moka') || str_contains($id, 'Moka')));
+    }
+
+    public function testTheMokaBridgeRequiresTheBundleOfMoka(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.moka requires the bundle "Moka\\Cms\\MokaCmsBundle" to be registered in config/bundles.php.');
+
+        $this->load(['moka' => true]);
+    }
+
+    public function testTheFirewallOfTheMokaBridgeCannotBeEmpty(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.moka.firewall');
+
+        $this->load(['moka' => ['firewall' => '']]);
     }
 
     private function requireScheb(): void

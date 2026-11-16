@@ -86,6 +86,10 @@ iq2i_herse:
         notify_on_other_user: true
         notify_on_console: true
 
+    moka:
+        enabled: false
+        firewall: moka                      # firewall of the MokaCMS administration
+
     two_factor:
         enabled: false
         method: ~                           # email | totp, required when enabled

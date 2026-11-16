@@ -9,7 +9,7 @@ PHP = $(PHP_CONT) php
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY: help build logs php install ci validate static cs-fix test coverage sylius-install sylius-test
+.PHONY: help build logs php install ci validate static cs-fix test coverage sylius-install sylius-test moka-build moka-install moka-test
 
 ## —— Help 🐳 🎵 ———————————————————————————————————————————————————————————————
 help: ## Outputs this help screen
@@ -38,6 +38,20 @@ sylius-install: ## Install the Sylius test application (SYLIUS_VERSION=2.2 or 2.
 
 sylius-test: ## Run the tests of the Sylius test application
 	@$(SYLIUS_PHP) php -d memory_limit=-1 vendor/bin/phpunit
+
+## —— MokaCMS ——————————————————————————————————————————————————————————————————
+# MokaCMS is private and runs on PHP 8.2 or 8.3 only: its own Compose project keeps the default image untouched.
+MOKA_COMP = COMPOSE_PROJECT_NAME=herse-bundle-moka PHP_VERSION=8.3 $(DOCKER_COMP)
+MOKA_PHP = $(MOKA_COMP) run --rm -w /srv/app/tests/MokaApplication php
+
+moka-build: ## Build the PHP 8.3 image of the MokaCMS test application
+	@$(MOKA_COMP) build
+
+moka-install: ## Install the MokaCMS test application (needs the Moka sources, see compose.override.yaml)
+	@$(MOKA_PHP) composer update --no-interaction --no-progress
+
+moka-test: ## Run the tests of the MokaCMS test application
+	@$(MOKA_PHP) php -d memory_limit=-1 vendor/bin/phpunit
 
 ## —— CI ✨ ————————————————————————————————————————————————————————————————————
 ci: validate static test

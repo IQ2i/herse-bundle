@@ -1,0 +1,7 @@
+# Import with the prefix of the Moka administration, e.g. "/admin".
+iq2i_herse_moka_two_factor:
+    path: /2fa
+    controller: scheb_two_factor.form_controller::form
+
+iq2i_herse_moka_two_factor_check:
+    path: /2fa_check

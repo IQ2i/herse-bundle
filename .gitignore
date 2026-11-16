@@ -13,3 +13,7 @@
 /tests/SyliusApplication/composer.lock
 /tests/SyliusApplication/.phpunit.cache
 /tests/SyliusApplication/config/reference.php
+/tests/MokaApplication/vendor/
+/tests/MokaApplication/composer.lock
+/tests/MokaApplication/.phpunit.cache
+/tests/MokaApplication/config/reference.php

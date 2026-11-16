@@ -1,0 +1,26 @@
+framework:
+    secret: 'moka-test-secret'
+    csrf_protection: true
+    http_method_override: true
+    handle_all_throwables: true
+    default_locale: en
+    translator:
+        default_path: '%kernel.project_dir%/translations'
+        fallbacks: [en]
+    session:
+        handler_id: null
+        cookie_secure: auto
+        cookie_samesite: lax
+    validation:
+        email_validation_mode: html5
+    workflows: null
+    mailer:
+        dsn: 'null://null'
+
+when@test: &framework_test
+    framework:
+        test: true
+        session:
+            storage_factory_id: session.storage.factory.mock_file
+
+when@test_two_factor: *framework_test
