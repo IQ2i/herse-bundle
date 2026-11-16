@@ -1,0 +1,14 @@
+version: 2
+
+updates:
+    - package-ecosystem: "composer"
+      directory: "/"
+      schedule:
+          interval: "weekly"
+      # The bundle has no lock file: only the constraints left behind by a new major version are raised.
+      versioning-strategy: "widen"
+
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      schedule:
+          interval: "weekly"

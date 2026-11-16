@@ -186,10 +186,6 @@
                 <source>IP address</source>
                 <target>Adresse IP</target>
             </trans-unit>
-            <trans-unit id="devices.unknown">
-                <source>Unknown device</source>
-                <target>Appareil inconnu</target>
-            </trans-unit>
             <trans-unit id="devices.current">
                 <source>This device</source>
                 <target>Cet appareil</target>

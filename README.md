@@ -63,7 +63,8 @@ iq2i_herse:
 The bundle never writes your security configuration. It checks it instead: when a declared firewall misses a line
 a feature relies on, the container compilation fails with the lines to add to `security.yaml`.
 
-The other options are described in the guide of each feature.
+The other options are described in the guide of each feature, and listed in the
+[configuration reference](docs/configuration.md).
 
 ## AI agents
 
@@ -90,6 +91,11 @@ The Sylius application of the test suite has its own dependencies:
 make sylius-install      # SYLIUS_VERSION=2.2 for the other supported version
 make sylius-test
 ```
+
+## Changes and security
+
+The changes of each release are in the [changelog](CHANGELOG.md). To report a vulnerability, follow the
+[security policy](SECURITY.md).
 
 ## License
 

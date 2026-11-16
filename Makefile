@@ -9,7 +9,7 @@ PHP = $(PHP_CONT) php
 
 # Misc
 .DEFAULT_GOAL = help
-.PHONY: help build logs php install ci static cs-fix test coverage sylius-install sylius-test
+.PHONY: help build logs php install ci validate static cs-fix test coverage sylius-install sylius-test
 
 ## —— Help 🐳 🎵 ———————————————————————————————————————————————————————————————
 help: ## Outputs this help screen
@@ -40,7 +40,10 @@ sylius-test: ## Run the tests of the Sylius test application
 	@$(SYLIUS_PHP) php -d memory_limit=-1 vendor/bin/phpunit
 
 ## —— CI ✨ ————————————————————————————————————————————————————————————————————
-ci: static test
+ci: validate static test
+
+validate: ## Validate composer.json
+	@$(PHP_CONT) composer validate --strict --no-check-lock
 
 static: ## Run static analysis tools
 	@$(PHP) -d memory_limit=-1 vendor/bin/phpstan analyse

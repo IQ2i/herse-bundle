@@ -27,6 +27,26 @@ jobs:
         name: "Coding standard"
         uses: IQ2i/.github/.github/workflows/php-cs.yml@main
 
+    templates:
+        name: "Templates"
+        runs-on: ubuntu-latest
+        steps:
+            - name: "Checkout repository"
+              uses: actions/checkout@v7
+
+            - name: "Setup PHP"
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.4"
+                  coverage: none
+                  tools: composer:v2
+
+            - name: "Install dependencies"
+              run: composer update --no-interaction --no-progress
+
+            - name: "Run Twig CS Fixer"
+              run: vendor/bin/twig-cs-fixer lint templates
+
     static-analysis-highest:
         name: "Static analysis"
         uses: IQ2i/.github/.github/workflows/php-stan.yml@main
@@ -46,10 +66,11 @@ jobs:
         with:
             matrix: |
                 [
+                    {"php": "8.5", "symfony": "8.1", "name": "PHP 8.5, Symfony 8.1"},
                     {"php": "8.4", "symfony": "8.0", "name": "PHP 8.4, Symfony 8.0"},
                     {"php": "8.3", "symfony": "7.4", "name": "PHP 8.3, Symfony 7.4"},
                     {"php": "8.2", "symfony": "6.4", "dependency-versions": "lowest", "name": "PHP 8.2, Symfony 6.4, lowest deps"},
-                    {"php": "8.5", "symfony": "8.0.x-dev", "stability": "dev", "name": "PHP 8.5, Symfony 8.0.x-dev"}
+                    {"php": "8.5", "symfony": "8.2.x-dev", "stability": "dev", "name": "PHP 8.5, Symfony 8.2.x-dev"}
                 ]
 
     tests-without-form:
@@ -94,7 +115,7 @@ jobs:
               run: vendor/bin/phpunit
 
     tests-sylius:
-        name: "Tests on Sylius ${{ matrix.sylius }}"
+        name: "Tests on Sylius ${{ matrix.sylius }} (PHP ${{ matrix.php }})"
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
@@ -102,6 +123,8 @@ jobs:
                 include:
                     - sylius: "2.2"
                       php: "8.2"
+                    - sylius: "2.3"
+                      php: "8.3"
                     - sylius: "2.3"
                       php: "8.4"
         steps:

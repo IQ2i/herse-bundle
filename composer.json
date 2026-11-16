@@ -16,7 +16,10 @@
     "php": ">=8.2",
     "symfony/config": "^6.4|^7.0|^8.0",
     "symfony/dependency-injection": "^6.4|^7.0|^8.0",
+    "symfony/event-dispatcher": "^6.4|^7.0|^8.0",
+    "symfony/http-foundation": "^6.4|^7.0|^8.0",
     "symfony/http-kernel": "^6.4|^7.0|^8.0",
+    "symfony/password-hasher": "^6.4|^7.0|^8.0",
     "symfony/property-access": "^6.4|^7.0|^8.0",
     "symfony/security-bundle": "^6.4|^7.0|^8.0",
     "symfony/security-http": "^6.4|^7.0|^8.0",
@@ -68,7 +71,21 @@
     "symfony/ai-mate": "Gives your agent the Herse skill (vendor/bin/mate discover)",
     "symfony/http-client": "To reject compromised passwords (password_policy.check_compromised)",
     "symfony/rate-limiter": "To limit the login attempts (login_throttling) and the wrong second factors (two_factor.throttling)",
-    "symfony/translation": "To translate the validation messages"
+    "symfony/translation": "To translate the validation messages",
+    "symfony/browser-kit": "To pass the second factor in your functional tests (TwoFactorTestTrait)",
+    "symfony/console": "To use the commands purging the trusted devices and resetting a second factor",
+    "symfony/lock": "To lock the rate limiters between concurrent requests (lock_factory: auto)"
+  },
+  "conflict": {
+    "bacon/bacon-qr-code": "<2.0",
+    "doctrine/doctrine-bundle": "<2.12",
+    "doctrine/orm": "<2.19",
+    "easycorp/easyadmin-bundle": "<4.8",
+    "scheb/2fa-bundle": "<7.0",
+    "scheb/2fa-email": "<7.0",
+    "scheb/2fa-totp": "<7.0",
+    "scheb/2fa-trusted-device": "<7.0",
+    "spomky-labs/otphp": "<11.4"
   },
   "config": {
     "sort-packages": true,

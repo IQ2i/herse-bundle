@@ -6,7 +6,7 @@ configuration per user class and per firewall, and is proven by a Sylius applica
 password change notification and the two-factor authentication, on the administration and the shop.
 
 Supported: **Sylius 2.2** (PHP 8.2+) and **Sylius 2.3** (PHP 8.3+). The test suite runs on Sylius 2.2 with PHP 8.2
-and on Sylius 2.3 with PHP 8.4. The names below are the ones of Sylius-Standard: a project that renamed its firewalls
+and on Sylius 2.3 with PHP 8.3 and 8.4. The names below are the ones of Sylius-Standard: a project that renamed its firewalls
 or extended other classes adapts them.
 
 ## Installation
