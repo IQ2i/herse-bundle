@@ -45,7 +45,8 @@ are prepared before the container resolves them.
 ## What the bundle does
 
 - **Defaults for scheb**: injected according to the method, under your own `scheb_two_factor` configuration which
-  always wins. `email`: the code is sent by the bundle and has 6 digits. `totp`: the issuer is `mailer.app_name`.
+  always wins. `email`: the code is sent by the bundle and has 6 digits. `totp`: the issuer is `two_factor.issuer`, or `mailer.app_name` without it. Set it from an environment variable
+  (`issuer: '%env(TOTP_ISSUER)%'`) to tell the environments apart in the authenticator app.
   Both: the code form is the one of the bundle. `trusted_devices`: the trusted device manager of scheb is the one of
   the bundle. No `scheb_2fa.yaml` is needed.
 - **A code is accepted once**: an accepted code is remembered in `code_reuse_cache` for a minute and refused a second

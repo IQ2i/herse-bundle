@@ -73,6 +73,11 @@ final class TwoFactorFeature
                     ->info('With totp, send the users without an authenticator app to the enrollment screen on the declared firewalls, until they have one. With email, every user of a class using the trait of the bundle has the second factor.')
                     ->defaultTrue()
                 ->end()
+                ->scalarNode('issuer')
+                    ->info('With totp, the name shown in the authenticator app, e.g. to tell the environments apart ("%env(TOTP_ISSUER)%"). Defaults to mailer.app_name.')
+                    ->defaultNull()
+                    ->cannotBeEmpty()
+                ->end()
                 ->scalarNode('reset_role')
                     ->info('With totp, the role allowed to reset the second factor of a user (e.g. ROLE_ADMIN) from the screen of the bundle. No such screen without it.')
                     ->defaultNull()
@@ -111,6 +116,10 @@ final class TwoFactorFeature
                 ->thenInvalid('iq2i_herse.two_factor.method is required: "email" or "totp".')
             ->end()
             ->validate()
+                ->ifTrue(static fn (array $twoFactor): bool => $twoFactor['enabled'] && 'email' === ($twoFactor['method'] ?? null) && null !== $twoFactor['issuer'])
+                ->thenInvalid('iq2i_herse.two_factor.issuer requires the "totp" method: there is no authenticator app with "email".')
+            ->end()
+            ->validate()
                 ->ifTrue(static fn (array $twoFactor): bool => $twoFactor['enabled'] && 'email' === ($twoFactor['method'] ?? null) && null !== $twoFactor['reset_role'])
                 ->thenInvalid('iq2i_herse.two_factor.reset_role requires the "totp" method: there is no authenticator app to reset with "email".')
             ->end()
@@ -118,7 +127,7 @@ final class TwoFactorFeature
     }
 
     /**
-     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', required: bool, reset_role: string|null, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
+     * @param array{users: array<class-string, array<string, mixed>>, firewalls: array<string, mixed>, mailer: array{sender: string|null, sender_name: string|null, app_name: string|null}, trusted_devices: array{enabled: bool}, two_factor: array{method?: 'email'|'totp', required: bool, issuer: string|null, reset_role: string|null, trusted_devices: bool, trusted_lifetime: string, throttling: array{enabled: bool, limit: int, interval: string, cache_pool: string, lock_factory: string|null}}} $config
      */
     public static function load(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -318,9 +327,11 @@ final class TwoFactorFeature
         if ('email' === $method) {
             $defaults['email'] = ['enabled' => true, 'mailer' => 'iq2i_herse.two_factor.auth_code_mailer', 'digits' => 6, 'template' => self::FORM_TEMPLATE];
         } else {
-            $appName = null;
-            foreach ($configs as $config) {
-                $appName = \is_array($config['mailer'] ?? null) ? ($config['mailer']['app_name'] ?? $appName) : $appName;
+            $appName = \is_string($twoFactor['issuer'] ?? null) ? $twoFactor['issuer'] : null;
+            if (null === $appName) {
+                foreach ($configs as $config) {
+                    $appName = \is_array($config['mailer'] ?? null) ? ($config['mailer']['app_name'] ?? $appName) : $appName;
+                }
             }
             $defaults['totp'] = ['enabled' => true, 'template' => self::FORM_TEMPLATE] + (\is_string($appName) ? ['issuer' => $appName] : []);
         }

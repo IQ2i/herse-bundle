@@ -47,7 +47,7 @@ iq2i_herse:
     mailer:
         sender: ~                           # required as soon as a feature sending emails is enabled
         sender_name: ~
-        app_name: ~                         # "app_name" in the templates, issuer of the TOTP
+        app_name: ~                         # "app_name" in the templates, issuer of the TOTP unless two_factor.issuer is set
 
     password_policy:
         enabled: false
@@ -90,6 +90,7 @@ iq2i_herse:
         enabled: false
         method: ~                           # email | totp, required when enabled
         required: true                      # totp: a user without authenticator app is sent to the enrollment screen
+        issuer: ~                           # totp: name shown in the authenticator app, accepts %env(...)%; mailer.app_name by default
         reset_role: ~                       # totp: the role allowed to reset the second factor of a user on the screen of the bundle
         trusted_devices: false
         trusted_lifetime: '30 days'
@@ -166,7 +167,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 ## `two_factor`
 
 - Bridge to `scheb/2fa-bundle` (its bundle must be registered in `config/bundles.php`). Packages: `scheb/2fa-email` or `scheb/2fa-totp` according to `method`, `scheb/2fa-trusted-device` with `trusted_devices: true`, `symfony/rate-limiter` for the throttling.
-- Defaults injected under `scheb_two_factor`, which the project configuration always overrides: email code of 6 digits sent by the bundle; TOTP issuer `mailer.app_name`; code form `@IQ2iHerse/two_factor/form.html.twig`; trusted device manager of the bundle. No `scheb_2fa.yaml` is needed.
+- Defaults injected under `scheb_two_factor`, which the project configuration always overrides: email code of 6 digits sent by the bundle; TOTP issuer `two_factor.issuer`, or `mailer.app_name`; code form `@IQ2iHerse/two_factor/form.html.twig`; trusted device manager of the bundle. No `scheb_2fa.yaml` is needed.
 - User entity: `implements Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface` + `use IQ2i\HerseBundle\TwoFactor\Model\EmailTwoFactorTrait` (column `email_auth_code`, every user has the second factor), or `implements IQ2i\HerseBundle\TwoFactor\Model\TotpTwoFactorInterface` + `use TotpTwoFactorTrait` (column `totp_secret`, enabled once a secret is set). Then a migration.
 - The email code goes to `getEmailAuthRecipient()` of the user class, or to the `email` property path when it is empty (the trait).
 - Screens: they extend `ui.layout` (or the `layout` of the firewall), which needs a `body` block. Override or embed a partial (`two_factor/_form.html.twig`, `two_factor/_setup.html.twig`, `two_factor/_reset.html.twig`, `devices/_list.html.twig`) in `templates/bundles/IQ2iHerseBundle/` to change the markup, or give a firewall its own `theme` directory holding templates of the same names (plus optional `security.html.twig` / `account.html.twig` frames defining the blocks `herse_title` and `herse_content`).
@@ -188,6 +189,7 @@ The compilation fails with a message naming the fix:
 - `iq2i_herse.users: "plain_password" requires iq2i_herse.password_policy to be enabled.`
 - `iq2i_herse.two_factor.method is required: "email" or "totp".`
 - `iq2i_herse.two_factor.trusted_devices requires iq2i_herse.trusted_devices to be enabled.`
+- `iq2i_herse.two_factor.issuer requires the "totp" method`: remove `issuer` with `method: email`.
 - `iq2i_herse.two_factor.reset_role requires the "totp" method`: remove `reset_role` with `method: email`.
 - `iq2i_herse.two_factor requires … Try running "composer require …"`, and the same for each feature missing a package.
 - `iq2i_herse.password_policy: max_length must be greater than or equal to min_length.`

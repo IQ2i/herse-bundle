@@ -4,6 +4,8 @@ The changes of each release. A change of behaviour is marked **BC**.
 
 ## Unreleased
 
+- `two_factor.issuer` sets the name shown in the authenticator app, from an environment variable if needed. It
+  defaults to `mailer.app_name`.
 - A second factor code that was accepted is refused a second time while it is still valid
   (`two_factor.code_reuse_cache`, with `scheb/2fa-bundle` 7.10 or later). A user logging in on a second device waits
   for the next code.

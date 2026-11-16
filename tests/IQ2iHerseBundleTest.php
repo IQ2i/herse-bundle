@@ -805,6 +805,13 @@ final class IQ2iHerseBundleTest extends TestCase
         $this->load(['two_factor' => ['method' => 'email', 'reset_role' => 'ROLE_ADMIN'], 'mailer' => ['sender' => 'no-reply@example.com']]);
     }
 
+    public function testTheIssuerIsRejectedWithTheEmailMethod(): void
+    {
+        $this->expectExceptionMessage('iq2i_herse.two_factor.issuer requires the "totp" method');
+
+        $this->load(['two_factor' => ['method' => 'email', 'issuer' => 'Acme'], 'mailer' => ['sender' => 'no-reply@example.com']]);
+    }
+
     public function testAnUnknownSecondFactorMethodIsRejected(): void
     {
         $this->expectExceptionMessage('"sms"');
@@ -1012,6 +1019,8 @@ final class IQ2iHerseBundleTest extends TestCase
         yield 'totp without application name' => [[['two_factor' => ['method' => 'totp']]], ['totp' => $totp] + $reuse];
         yield 'totp with the application name as issuer' => [[['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']] + $reuse];
         yield 'the last application name wins' => [[['mailer' => ['app_name' => 'Old']], ['two_factor' => ['method' => 'totp'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme']] + $reuse];
+        yield 'the issuer wins over the application name' => [[['two_factor' => ['method' => 'totp', 'issuer' => 'Acme preprod'], 'mailer' => ['app_name' => 'Acme']]], ['totp' => $totp + ['issuer' => 'Acme preprod']] + $reuse];
+        yield 'the issuer can be an environment variable' => [[['two_factor' => ['method' => 'totp', 'issuer' => '%env(TOTP_ISSUER)%']]], ['totp' => $totp + ['issuer' => '%env(TOTP_ISSUER)%']] + $reuse];
         yield 'with the device bridge' => [[['two_factor' => ['method' => 'email', 'trusted_devices' => true]]], $email + ['trusted_device' => ['enabled' => true, 'manager' => 'iq2i_herse.two_factor.trusted_device_manager']] + $reuse];
         yield 'the method of the last configuration wins' => [[['two_factor' => ['method' => 'email']], ['two_factor' => ['method' => 'totp']]], ['totp' => $totp] + $reuse];
         yield 'another pool remembers the accepted codes' => [[['two_factor' => ['method' => 'totp', 'code_reuse_cache' => 'cache.shared']]], ['totp' => $totp] + ($known ? ['code_reuse_cache' => 'cache.shared'] : [])];

@@ -35,7 +35,7 @@ iq2i_herse:
     mailer:
         sender: ~                           # required as soon as a feature sending emails is enabled
         sender_name: ~
-        app_name: ~                         # "app_name" in the templates, issuer of the TOTP
+        app_name: ~                         # "app_name" in the templates, issuer of the TOTP unless two_factor.issuer is set
 
     password_policy:
         enabled: false
@@ -78,6 +78,7 @@ iq2i_herse:
         enabled: false
         method: ~                           # email | totp, required when enabled
         required: true                      # totp: a user without authenticator app is sent to the enrollment screen
+        issuer: ~                           # totp: name shown in the authenticator app, accepts %env(...)%; mailer.app_name by default
         reset_role: ~                       # totp: the role allowed to reset the second factor of a user on the screen of the bundle
         trusted_devices: false
         trusted_lifetime: '30 days'
