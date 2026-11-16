@@ -221,8 +221,8 @@ final class TrustedDevicesFeature
         $builder->prependExtensionConfig('doctrine', ['orm' => ['mappings' => ['IQ2iHerse' => [
             'type' => 'attribute',
             'is_bundle' => false,
-            'dir' => \dirname(__DIR__, 2).'/Entity',
-            'prefix' => 'IQ2i\\HerseBundle\\Entity',
+            'dir' => \dirname(__DIR__, 2).'/TrustedDevice/Entity',
+            'prefix' => 'IQ2i\\HerseBundle\\TrustedDevice\\Entity',
         ]]]]);
     }
 }

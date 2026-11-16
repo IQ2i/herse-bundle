@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Event\TwoFactorFailedEvent;
 use IQ2i\HerseBundle\Event\TwoFactorSucceededEvent;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
 
 final class TwoFactorEmailTest extends TwoFactorKernelTestCase

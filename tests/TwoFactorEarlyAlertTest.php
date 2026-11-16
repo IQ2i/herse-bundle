@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 
 /**
  * With notify_before_second_factor, the user is warned as soon as the password is accepted from an unknown device.

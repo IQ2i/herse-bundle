@@ -17,7 +17,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
-use IQ2i\HerseBundle\Entity\TrustedDevice;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\User\UserReference;
 
 /**

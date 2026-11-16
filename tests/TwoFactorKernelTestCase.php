@@ -13,11 +13,11 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Event\NewDeviceEvent;
 use IQ2i\HerseBundle\Event\TwoFactorFailedEvent;
 use IQ2i\HerseBundle\Event\TwoFactorSucceededEvent;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\TwoFactorAccount;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use Psr\Cache\CacheItemPoolInterface;
 use Scheb\TwoFactorBundle\SchebTwoFactorBundle;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;

@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Controller;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Routing\HerseRouteLoader;
 use IQ2i\HerseBundle\Security\FirewallRegistry;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\User\UserResolver;
 use Symfony\Bundle\SecurityBundle\Security;

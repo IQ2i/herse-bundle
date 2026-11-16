@@ -4,6 +4,9 @@ The changes of each release. A change of behaviour is marked **BC**.
 
 ## Unreleased
 
+- **BC** The entity `TrustedDevice` moves to `IQ2i\HerseBundle\TrustedDevice\Entity`. With the `auto_mapping` of
+  Doctrine (Symfony recipe, Sylius), its table was proposed to every project, even without the trusted devices. The
+  table and the columns do not change: no migration.
 - `two_factor.issuer` sets the name shown in the authenticator app, from an environment variable if needed. It
   defaults to `mailer.app_name`.
 - A second factor code that was accepted is refused a second time while it is still valid

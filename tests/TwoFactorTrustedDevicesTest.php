@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDevices;
 use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;

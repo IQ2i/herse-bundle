@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Event\NewDeviceEvent;
 use IQ2i\HerseBundle\Tests\TestApplication\Entity\Account;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;

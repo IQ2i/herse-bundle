@@ -27,8 +27,9 @@ final class AccountApplication
      * @param array<string, array<string, mixed>> $firewalls
      * @param class-string                        $accountClass the user class: "Account", or an entity of another directory
      * @param array<class-string, string>         $otherUsers   more user classes, with their type
+     * @param bool                                $autoMapping  what Symfony recipes and Sylius set: Doctrine maps the entities of every bundle
      */
-    public static function load(ContainerConfigurator $container, array $herse, array $firewalls, string $passwordField = 'password', string $accountClass = Account::class, array $otherUsers = []): void
+    public static function load(ContainerConfigurator $container, array $herse, array $firewalls, string $passwordField = 'password', string $accountClass = Account::class, array $otherUsers = [], bool $autoMapping = false): void
     {
         $container->extension('iq2i_herse', [
             'users' => [
@@ -44,7 +45,7 @@ final class AccountApplication
         $container->extension('twig', []);
         $container->extension('doctrine', [
             'dbal' => ['driver' => 'pdo_sqlite', 'memory' => true],
-            'orm' => ['mappings' => ['Test' => [
+            'orm' => ['auto_mapping' => $autoMapping, 'mappings' => ['Test' => [
                 'type' => 'attribute',
                 'is_bundle' => false,
                 'dir' => '%kernel.project_dir%/src/Entity',

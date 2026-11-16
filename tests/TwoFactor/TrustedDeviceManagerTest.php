@@ -13,10 +13,10 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\Tests\TwoFactor;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Tests\TestApplication\TwoFactorEntity\TwoFactorAccount;
 use IQ2i\HerseBundle\Tests\TwoFactorKernelTestCase;
 use IQ2i\HerseBundle\TrustedDevice\DeviceCookies;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\TrustedDevice\TrustedDeviceRepository;
 use IQ2i\HerseBundle\TrustedDevice\TrustLevel;
 use IQ2i\HerseBundle\TwoFactor\TrustedDeviceManager;

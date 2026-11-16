@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\TrustedDevice;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Event\NewDeviceEvent;
 use IQ2i\HerseBundle\Mailer\Mailer;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\User\UserReference;
 use IQ2i\HerseBundle\User\UserResolver;
 use Psr\Log\LoggerInterface;

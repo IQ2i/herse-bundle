@@ -147,7 +147,7 @@ Shared by the three emails: new device, password changed, two-factor code (email
 
 ## `trusted_devices`
 
-- Needs Doctrine ORM and DoctrineBundle, the mailer packages and `mailer.sender`. Entity `IQ2i\HerseBundle\Entity\TrustedDevice`, table `iq2i_herse_trusted_device`, default entity manager: generate a migration.
+- Needs Doctrine ORM and DoctrineBundle, the mailer packages and `mailer.sender`. Entity `IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice`, table `iq2i_herse_trusted_device`, default entity manager: generate a migration.
 - `firewalls` defaults to the ones of `iq2i_herse.firewalls`; one firewall at least is required. Cookie `herse_device_<firewall>` (override with `cookie_name`: letters, digits, `_`, `.`, `-`), `HttpOnly`, `Secure`, `SameSite=Lax`. `lifetime` is the inactivity after which a device is forgotten.
 - `store_ip: false` keeps no IP (personal data). The raw User-Agent is never stored, only a label (`Firefox (macOS)`).
 - `notify_first_device: false` registers the first device of a user silently (useful at roll-out).

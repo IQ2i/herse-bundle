@@ -758,7 +758,7 @@ final class IQ2iHerseBundleTest extends TestCase
         $doctrine = $container->getExtensionConfig('doctrine')[0] ?? [];
         $mappings = $doctrine['orm']['mappings'] ?? [];
         if ($mapped) {
-            self::assertSame(['type' => 'attribute', 'is_bundle' => false, 'dir' => \dirname(__DIR__).'/src/Entity', 'prefix' => 'IQ2i\\HerseBundle\\Entity'], $mappings['IQ2iHerse']);
+            self::assertSame(['type' => 'attribute', 'is_bundle' => false, 'dir' => \dirname(__DIR__).'/src/TrustedDevice/Entity', 'prefix' => 'IQ2i\\HerseBundle\\TrustedDevice\\Entity'], $mappings['IQ2iHerse']);
         } else {
             self::assertSame([], $mappings);
         }

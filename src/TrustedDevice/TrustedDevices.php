@@ -13,8 +13,8 @@ declare(strict_types=1);
 
 namespace IQ2i\HerseBundle\TrustedDevice;
 
-use IQ2i\HerseBundle\Entity\TrustedDevice;
 use IQ2i\HerseBundle\Event\TrustedDevicesRevokedEvent;
+use IQ2i\HerseBundle\TrustedDevice\Entity\TrustedDevice;
 use IQ2i\HerseBundle\User\UserReference;
 use IQ2i\HerseBundle\User\UserResolver;
 use Symfony\Component\HttpFoundation\RequestStack;
